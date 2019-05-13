@@ -16,7 +16,7 @@
         android:layout_marginStart="70dp"
         android:layout_marginTop="38dp"
         android:layout_marginEnd="70dp"
-        android:onClick="RequestPoL"
+        android:onClick="requestPoL"
         android:text="Request Proof-of-Location" />
 
     <Button
@@ -31,5 +31,26 @@
         android:layout_marginEnd="70dp"
         android:onClick="OpenDebugging"
         android:text="Debugging" />
+
+
+    <ListView
+        android:id="@+id/lvNewDevices"
+        android:layout_width="wrap_content"
+        android:layout_height="150dp"
+        android:layout_below="@+id/Debugging"
+        android:layout_marginTop="15dp" />
+
+
+    <TextView
+        android:id="@+id/textView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/lvNewDevices"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentLeft="true"
+        android:gravity="center"
+        android:text=""
+        android:textSize="16sp" />
+
 
 </RelativeLayout>

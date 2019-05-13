@@ -20,7 +20,9 @@ import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListView;
+import android.widget.TextView;
 
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.UUID;
 
@@ -35,6 +37,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
     Button btnRequestPoL;
     Button btnONOFF;
     Button btnStartConnection;
+    private TextView t;
     Button btnSend;
     EditText etSend;
 
@@ -84,6 +87,8 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         btnONOFF = (Button) findViewById(R.id.btnONOFF);
         btnStartConnection = (Button) findViewById(R.id.btnStartConnection);
         btnStartConnection = (Button) findViewById(R.id.btnStartConnection);
+        lvNewDevices = (ListView) findViewById(R.id.lvNewDevices);
+        t = (TextView) findViewById(R.id.textView);
 
         //Broadcasts when bond state changes (ie:pairing)
         IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
@@ -94,6 +99,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
         mBTDevices = new ArrayList<>();
 
+        lvNewDevices.setOnItemClickListener(MainPage.this);
 
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
 
@@ -114,8 +120,11 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                 //Log.d(TAG, "RequestLocation: Location Changed... " + locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER));
 
                 //t.setText("\n " + location.getLongitude() + " " + location.getLatitude());
+                //Log.d(TAG, "THIS: " + currentLocation + " - " + mBluetoothConnection.currentLocation);
                 currentLocation = location.getLongitude() + ", " +location.getLatitude();
+
                 mBluetoothConnection.currentLocation = currentLocation;
+
 
             }
 
@@ -134,25 +143,32 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                 //Log.d(TAG, "RequestLocation: Provider is disabled... ");
                 Intent i = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
                 startActivity(i);
-                //Log.d(TAG, "RequestLocation: Provider has been enabled... ");
+                Log.d(TAG, "RequestLocation: Provider has been enabled... ");
             }
         };
 
-        configure_button();
+        activateLocationProvider();
+        mBluetoothConnection = new BluetoothConnectionService(MainPage.this);
+        enableBT();
+
+        btnEnableDisable_Discoverable();
+
+        btnDiscover();
+
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         switch (requestCode) {
             case 10:
-                configure_button();
+                activateLocationProvider();
                 break;
             default:
                 break;
         }
     }
 
-    void configure_button() {
+    void activateLocationProvider() {
         // first check for permissions
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -162,10 +178,6 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
             return;
         }
         // this code won't execute IF permissions are not allowed, because in the line above there is return statement.
-        activateLocationProvider();
-    }
-
-    void activateLocationProvider () {
         //noinspection MissingPermission
         Log.d(TAG, "RequestLocation: Requesting Location Updates... ");
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -181,6 +193,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, listener);
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, listener);
     }
+
 
     private final BroadcastReceiver mBroadcastReceiver1 = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
@@ -260,7 +273,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
             if (action.equals(BluetoothDevice.ACTION_FOUND)){
                 BluetoothDevice device = intent.getParcelableExtra (BluetoothDevice.EXTRA_DEVICE);
-                mBTDevices.add(device);
+                if (device.getName() != null) mBTDevices.add(device);
                 Log.d(TAG, "onReceive: " + device.getName() + ": " + device.getAddress());
                 mDeviceListAdapter = new DeviceListAdapter(context, R.layout.device_adapter_view, mBTDevices);
                 lvNewDevices.setAdapter(mDeviceListAdapter);
@@ -395,6 +408,9 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         //first cancel discovery because its very memory intensive.
         mBluetoothAdapter.cancelDiscovery();
 
+        if (mBluetoothConnection != null)
+            mBluetoothConnection.cancel();
+
         Log.d(TAG, "onItemClick: You Clicked on a device.");
         String deviceName = mBTDevices.get(i).getName();
         String deviceAddress = mBTDevices.get(i).getAddress();
@@ -410,6 +426,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
             mBTDevice = mBTDevices.get(i);
             mBluetoothConnection = new BluetoothConnectionService(MainPage.this);
+            startConnection();
         }
     }
 
@@ -419,12 +436,15 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
 
         for (BluetoothDevice device : mBTDevices) {
-
+            Log.e(TAG, "Device #" + numOfPaired++);
             String deviceName = device.getName();
             String deviceAddress = device.getAddress();
 
             Log.d(TAG, "connectListEach: deviceName = " + deviceName);
             Log.d(TAG, "connectListEach: deviceAddress = " + deviceAddress);
+
+            if (deviceName == null) continue;
+            //if (!deviceName.equals("Black MLS") && !deviceName.equals("[TV] UE65JS9000")) continue;
 
             if(Build.VERSION.SDK_INT > Build.VERSION_CODES.JELLY_BEAN_MR2){
                 Log.d(TAG, "Trying to pair with " + deviceName);
@@ -433,13 +453,56 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                 mBTDevice = device;
                 mBluetoothConnection = new BluetoothConnectionService(MainPage.this);
 
-                // FIX THIS
-                // 1. pair
-                // 2. request proof that app is downloaded. (send hello, wait for hi)
-                // 3. if not unpair
+            }
+            Log.d(TAG, "STARTING startConnection...");
+            startConnection();
+            Log.d(TAG, "ENDING startConnection...");
+
+            while (true) {
+                if (mBluetoothConnection.unlock) break;
             }
 
 
+            Log.d(TAG, "STARTING requestPoL...");
+            requestPoL(null);
+            Log.d(TAG, "ENDING requestPoL...");
+
+            if (mBluetoothConnection != null)
+                mBluetoothConnection.cancel();
+
+
+        }
+    }
+
+
+
+    public void requestPoL(View view) {
+        Log.d(TAG, "Requesting Proof-of-Location...");
+        t.clearComposingText();
+        if (mBTDevice == null) return;
+        Log.e(TAG, "Compatibility: " + mBluetoothConnection.isIncompatibleDevice + " - Device: " + mBTDevice.getName());
+        if (!mBluetoothConnection.isIncompatibleDevice) {
+            if (!currentLocation.equals("Unavailable")) {
+                String reqPOL = "POL request: " + currentLocation;
+                byte[] bytes = reqPOL.getBytes(Charset.defaultCharset());
+                mBluetoothConnection.write(bytes);
+
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                String temp = "" + reqPOL + "\n" + getCurrentMessage();
+
+                Log.d(TAG, temp);
+                t.setText(temp);
+                //resultDisplay.setText("Success!");
+            }
+            else ;//resultDisplay.setText("Failed! Location unavailable...");
+        } else {
+            Log.d(TAG, "Device "
+
+                    + mBTDevice + " is incompatible... Can't write here!");
         }
     }
 
@@ -450,21 +513,15 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
     }
 
     public void RequestPoL(View view) {
-        Log.d(TAG, "STARTING enableDisableBT...");
-        enableBT();
-        Log.d(TAG, "ENDING enableDisableBT...");
 
-        Log.d(TAG, "STARTING btnEnableDisable...");
-        btnEnableDisable_Discoverable();
-        Log.d(TAG, "ENDING btnEnableDisable...");
 
-        Log.d(TAG, "STARTING btnDiscover...");
-        btnDiscover();
-        Log.d(TAG, "ENDING btnDiscover...");
+        Log.d(TAG, "STARTING connectListEach...");
+        connectListEach();
+        Log.d(TAG, "ENDING connectListEach...");
+    }
 
-        //Log.d(TAG, "STARTING CheckCompatibility...");
-        //CheckCompatibility(null);
-        //Log.d(TAG, "ENDING CheckCompatibility...");
+    public String getCurrentMessage() {
+        return mBluetoothConnection.currentMessage;
     }
 
 }

@@ -257,7 +257,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                     // for Activity#requestPermissions for more details.
                     return;
                 }
-                //Log.d(TAG, "RequestLocation: Location Changed... " + locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER));
+                Log.d(TAG, "RequestLocation: Location Changed... " + locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER));
 
                 t.setText("\n " + location.getLongitude() + " " + location.getLatitude());
                 currentLocation = location.getLongitude() + ", " +location.getLatitude();
@@ -285,6 +285,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         };
 
         configure_button();
+        mBluetoothConnection = new BluetoothConnectionService(MainActivity.this);
 
 
     }
@@ -345,9 +346,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
      **/
     public void startBTConnection(BluetoothDevice device, UUID uuid) {
         Log.d(TAG,"startBTConnection: Initializing RFCOM Bluetooth Connection.");
-
         mBluetoothConnection.startClient(device, uuid);
-        //mBluetoothConnection.isIncompatibleDevice
+        //mBluetoothConnection.cancel();
 
     }
 
@@ -389,6 +389,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     public void btnDiscover(View view) {
         Log.d(TAG, "btnDiscover: Looking for unpaired devices.");
+        mBTDevices.clear();
 
         if(mBluetoothAdapter.isDiscovering()){
             mBluetoothAdapter.cancelDiscovery();
@@ -434,18 +435,21 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     }
 
     public void requestPoL(View view) {
-        Log.d(TAG, "Requesting Proof-of-Location...");
-        if (!mBluetoothConnection.isIncompatibleDevice) {
-            if (!currentLocation.equals("Unavailable")) {
-                String reqPOL = "POL request: " + currentLocation;
-                byte[] bytes = reqPOL.getBytes(Charset.defaultCharset());
-                mBluetoothConnection.write(bytes);
-                //resultDisplay.setText("Success!");
-            }
-            else ;//resultDisplay.setText("Failed! Location unavailable...");
-        } else {
-            Log.d(TAG, "Device " + mBTDevice + " is incompatible... Can't write here!");
-        }
+        mBluetoothConnection.cancel();
+//        Log.d(TAG, "Requesting Proof-of-Location...");
+//        if (!mBluetoothConnection.isIncompatibleDevice) {
+//            if (!currentLocation.equals("Unavailable")) {
+//                //String timestamp = new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss").format(new java.util.Date());
+//
+//                String reqPOL = "POL request: " + currentLocation + "";
+//                byte[] bytes = reqPOL.getBytes(Charset.defaultCharset());
+//                mBluetoothConnection.write(bytes);
+//                //resultDisplay.setText("Success!");
+//            }
+//            else ;//resultDisplay.setText("Failed! Location unavailable...");
+//        } else {
+//            Log.d(TAG, "Device " + mBTDevice + " is incompatible... Can't write here!");
+//        }
     }
 
 
@@ -470,8 +474,13 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
             mBTDevice = mBTDevices.get(i);
             mBluetoothConnection = new BluetoothConnectionService(MainActivity.this);
+
         }
     }
 
+
+    public String getCurrentMessage() {
+        return mBluetoothConnection.currentMessage;
+    }
 
 }
