@@ -22,17 +22,45 @@ import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 
+import java.math.BigInteger;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
+//import org.web3j.crypto.Credentials;
+import org.web3j.protocol.Web3j;
+import org.web3j.protocol.core.methods.response.TransactionReceipt;
+import org.web3j.protocol.infura.InfuraHttpService;
+import org.web3j.tx.FastRawTransactionManager;
+import org.web3j.tx.TransactionManager;
+import org.web3j.crypto.Credentials;
+
 
 public class MainActivity extends AppCompatActivity implements AdapterView.OnItemClickListener {
     private static final String TAG = "MainActivity";
+
+    // BLOCKCHAIN CONTRACT STUFF
+    String contractAddress = "0x504f2bD1E6E75809E98Ab887fE73bC98dF3bfBD5";
+    String url = "https://rinkeby.infura.io/v3/671362fca54b42b0a7c7f3c3126dc47b";
+    Web3j web3j = Web3j.build(new InfuraHttpService(url));
+
+    BigInteger gasLimit = BigInteger.valueOf(20_000_000_000L);
+    BigInteger gasPrice = BigInteger.valueOf(4300000L);
+
+    Credentials credentials = Credentials.create("629054BB24F430E96C6BFFC58F186371695BC3BFC695E76CEF54DAFCA460BC0C");
+
+    Future<TransactionReceipt> transactionReceipt;
+
+    TransactionManager fastRawTxMgr =new FastRawTransactionManager(web3j, credentials);
+    Greeter greeter;
 
     BluetoothAdapter mBluetoothAdapter;
     BluetoothConnectionService mBluetoothConnection;
@@ -189,6 +217,10 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // BLOCKCHAIN CONTRACT STUFF
+        greeter = Greeter.load(contractAddress, web3j, fastRawTxMgr, gasLimit, gasPrice);
+
+        // BLUETOOTH STUFF
         Button btnONOFF = (Button) findViewById(R.id.btnONOFF);
         btnEnableDisable_Discoverable = (Button) findViewById(R.id.btnDiscoverable_on_off);
         lvNewDevices = (ListView) findViewById(R.id.lvNewDevices);
@@ -261,7 +293,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
                 t.setText("\n " + location.getLongitude() + " " + location.getLatitude());
                 currentLocation = location.getLongitude() + ", " +location.getLatitude();
-                mBluetoothConnection.currentLocation = currentLocation;
+                //mBluetoothConnection.currentLocation = currentLocation;
 
             }
 
@@ -285,7 +317,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         };
 
         configure_button();
-        mBluetoothConnection = new BluetoothConnectionService(MainActivity.this);
+        //mBluetoothConnection = new BluetoothConnectionService(MainActivity.this);
 
 
     }
@@ -435,21 +467,21 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     }
 
     public void requestPoL(View view) {
-        mBluetoothConnection.cancel();
-//        Log.d(TAG, "Requesting Proof-of-Location...");
-//        if (!mBluetoothConnection.isIncompatibleDevice) {
-//            if (!currentLocation.equals("Unavailable")) {
-//                //String timestamp = new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss").format(new java.util.Date());
-//
-//                String reqPOL = "POL request: " + currentLocation + "";
-//                byte[] bytes = reqPOL.getBytes(Charset.defaultCharset());
-//                mBluetoothConnection.write(bytes);
-//                //resultDisplay.setText("Success!");
-//            }
-//            else ;//resultDisplay.setText("Failed! Location unavailable...");
-//        } else {
-//            Log.d(TAG, "Device " + mBTDevice + " is incompatible... Can't write here!");
-//        }
+        //mBluetoothConnection.cancel();
+        Log.d(TAG, "Requesting Proof-of-Location...");
+        if (!mBluetoothConnection.isIncompatibleDevice) {
+            if (!currentLocation.equals("Unavailable")) {
+                //String timestamp = new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss").format(new java.util.Date());
+
+                String reqPOL = "POL request: " + currentLocation + "";
+                byte[] bytes = reqPOL.getBytes(Charset.defaultCharset());
+                mBluetoothConnection.write(bytes);
+                //resultDisplay.setText("Success!");
+            }
+            else ;//resultDisplay.setText("Failed! Location unavailable...");
+        } else {
+            Log.d(TAG, "Device " + mBTDevice + " is incompatible... Can't write here!");
+        }
     }
 
 
@@ -465,7 +497,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
         Log.d(TAG, "onItemClick: deviceName = " + deviceName);
         Log.d(TAG, "onItemClick: deviceAddress = " + deviceAddress);
-
         //create the bond.
         //NOTE: Requires API 17+? I think this is JellyBean
         if(Build.VERSION.SDK_INT > Build.VERSION_CODES.JELLY_BEAN_MR2){
@@ -482,5 +513,44 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public String getCurrentMessage() {
         return mBluetoothConnection.currentMessage;
     }
+
+    public void receipt (View view)  {
+        new Thread(new Runnable() {
+            public void run() {
+                TransactionReceipt transactionReceipt = null;
+                try {
+                    transactionReceipt = greeter.changeGreeting(new String("Sorry!!")).sendAsync().get(3, TimeUnit.MINUTES);
+                } catch (ExecutionException e) {
+                    e.printStackTrace();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } catch (TimeoutException e) {
+                    e.printStackTrace();
+                }
+                String result = "Successful transaction. Gas used: " + transactionReceipt.getGasUsed();
+                System.out.println(result);
+            }
+        }).start();
+    }
+
+
+    public void change(View view) {
+        new Thread(new Runnable() {
+            public void run() {
+                Future<String> greeting = greeter.greet().sendAsync();
+                String result = null;
+                try {
+                    result = greeting.get();
+                } catch (ExecutionException e) {
+                    e.printStackTrace();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                System.out.println(result);
+
+            }
+        }).start();
+    }
+
 
 }

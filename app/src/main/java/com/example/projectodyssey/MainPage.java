@@ -1,6 +1,7 @@
 package com.example.projectodyssey;
 
 import android.Manifest;
+import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.BroadcastReceiver;
@@ -17,29 +18,111 @@ import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListView;
+import android.widget.Spinner;
 import android.widget.TextView;
 
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.util.Strings;
+import org.bouncycastle.util.encoders.Hex;
+import org.web3j.crypto.Credentials;
+import org.web3j.crypto.ECDSASignature;
+import org.web3j.crypto.ECKeyPair;
+import org.web3j.crypto.Hash;
+import org.web3j.crypto.Keys;
+import org.web3j.crypto.Sign;
+import org.web3j.protocol.Web3j;
+import org.web3j.protocol.core.methods.response.TransactionReceipt;
+import org.web3j.protocol.infura.InfuraHttpService;
+import org.web3j.tx.FastRawTransactionManager;
+import org.web3j.tx.TransactionManager;
+import org.web3j.utils.Numeric;
+
+import java.io.UnsupportedEncodingException;
+import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.nio.charset.Charset;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.Key;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Security;
+import java.security.SignatureException;
+import java.security.spec.ECGenParameterSpec;
+import java.security.spec.KeySpec;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
+import android.util.Base64;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.spec.SecretKeySpec;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
+import static android.bluetooth.BluetoothAdapter.STATE_OFF;
+import static android.bluetooth.BluetoothAdapter.STATE_ON;
+
 public class MainPage extends AppCompatActivity implements AdapterView.OnItemClickListener {
 
     private static final String TAG = "MainPage";
+    public static final String PERSONAL_MESSAGE_PREFIX = "\u0019Ethereum Signed Message:\n";
+    // BLOCKCHAIN CONTRACT STUFF
+    String contractAddress = "0xa4B84814dC87C487e583cfd6d20390f263d4787A";
+    String greeterAddress = "0x504f2bD1E6E75809E98Ab887fE73bC98dF3bfBD5";
+    String url = "https://rinkeby.infura.io/v3/671362fca54b42b0a7c7f3c3126dc47b";
+    Web3j web3j = Web3j.build(new InfuraHttpService(url));
+
+    BigInteger gasLimit = BigInteger.valueOf(6700000L);
+    BigInteger gasPrice = BigInteger.valueOf(22_000_000_000L);
+
+    Credentials credentials = Credentials.create("629054BB24F430E96C6BFFC58F186371695BC3BFC695E76CEF54DAFCA460BC0C");
+    String myPublicKey = "0x015Bbab8756B37d8D14e7ff7f915650b37161f39";
+
+    private static SecretKeySpec secretKey;
+    private static byte[] key;
+
+    Future<TransactionReceipt> transactionReceipt;
+
+    TransactionManager fastRawTxMgr =new FastRawTransactionManager(web3j, credentials);
+    Greeter greeter;
+    Transaction transaction;
+
+
+    // BLUETOOTH STUFF
     Button btnDebug;
     Button btnRequestPoL;
     Button btnONOFF;
     Button btnStartConnection;
     private TextView t;
-    Button btnSend;
+    Button btnSendEther;
     EditText etSend;
+    EditText textAmountToSend;
+    Spinner spinner;
+    String destination;
+    String witnessKey;
 
     BluetoothAdapter mBluetoothAdapter;
     BluetoothConnectionService mBluetoothConnection;
@@ -74,15 +157,30 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main_page);
 
-        btnDebug = (Button) findViewById(R.id.Debugging);
-        btnDebug.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                OpenDebugging(null);
+        // BLOCKCHAIN CONTRACT STUFF
+        transaction = Transaction.load(contractAddress, web3j, fastRawTxMgr, gasPrice, gasLimit);
 
-            }
 
-        });
+        btnSendEther = (Button) findViewById(R.id.sendEther);
+        textAmountToSend = (EditText) findViewById(R.id.textAmount);
+
+        spinner = (Spinner) findViewById(R.id.destAddresses);
+        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
+                R.array.addresses, android.R.layout.simple_spinner_item);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+
+        // BLUETOOTH STUFF
+
+        //btnDebug = (Button) findViewById(R.id.Debugging);
+//        btnDebug.setOnClickListener(new View.OnClickListener() {
+//            @Override
+//            public void onClick(View v) {
+//                OpenDebugging(null);
+//
+//            }
+//
+//        });
         btnRequestPoL = (Button) findViewById(R.id.RequestPoL);
         btnONOFF = (Button) findViewById(R.id.btnONOFF);
         btnStartConnection = (Button) findViewById(R.id.btnStartConnection);
@@ -121,9 +219,19 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
                 //t.setText("\n " + location.getLongitude() + " " + location.getLatitude());
                 //Log.d(TAG, "THIS: " + currentLocation + " - " + mBluetoothConnection.currentLocation);
-                currentLocation = location.getLongitude() + ", " +location.getLatitude();
+                double temp1 = location.getLatitude();
+                double temp2 = location.getLongitude();
+                DecimalFormat df = new DecimalFormat("#.####");
 
-                mBluetoothConnection.currentLocation = currentLocation;
+                df.setRoundingMode( RoundingMode.FLOOR);
+
+                double lat = new Double(df.format(temp1));
+                double lon = new Double(df.format(temp2));
+
+
+                currentLocation = lon + ", " + lat;
+
+                if (mBluetoothConnection != null)mBluetoothConnection.currentLocation = currentLocation;
 
 
             }
@@ -148,14 +256,17 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         };
 
         activateLocationProvider();
-        mBluetoothConnection = new BluetoothConnectionService(MainPage.this);
+        String destination = spinner.getSelectedItem().toString();
+        Log.d( TAG, "AAAAAA" + destination );
         enableBT();
-
         btnEnableDisable_Discoverable();
 
-        btnDiscover();
+        mBluetoothConnection = new BluetoothConnectionService(MainPage.this);
+        btnDiscover(null);
 
+        //changeGreeting();
     }
+
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
@@ -203,13 +314,13 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                 final int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, mBluetoothAdapter.ERROR);
 
                 switch(state){
-                    case BluetoothAdapter.STATE_OFF:
+                    case STATE_OFF:
                         Log.d(TAG, "onReceive: STATE OFF");
                         break;
                     case BluetoothAdapter.STATE_TURNING_OFF:
                         Log.d(TAG, "mBroadcastReceiver1: STATE TURNING OFF");
                         break;
-                    case BluetoothAdapter.STATE_ON:
+                    case STATE_ON:
                         Log.d(TAG, "mBroadcastReceiver1: STATE ON");
                         break;
                     case BluetoothAdapter.STATE_TURNING_ON:
@@ -358,7 +469,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
     }
 
-    public void btnDiscover() {
+    public void btnDiscover(View view) {
         Log.d(TAG, "btnDiscover: Looking for unpaired devices.");
 
         if(mBluetoothAdapter.isDiscovering()){
@@ -373,7 +484,6 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
             registerReceiver(mBroadcastReceiver3, discoverDevicesIntent);
         }
         if(!mBluetoothAdapter.isDiscovering()){
-
             //check BT permissions in manifest
             checkBTPermissions();
 
@@ -487,15 +597,155 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                 byte[] bytes = reqPOL.getBytes(Charset.defaultCharset());
                 mBluetoothConnection.write(bytes);
 
-                try {
-                    Thread.sleep(50);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                String temp = "" + reqPOL + "\n" + getCurrentMessage();
+                new Thread( new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            Thread.sleep(500);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        String temp = "" + reqPOL + "\n" + getCurrentMessage();
 
-                Log.d(TAG, temp);
-                t.setText(temp);
+                        Log.d(TAG, temp);
+                        runOnUiThread(new Runnable() {
+
+                            @Override
+                            public void run() {
+
+                                t.setText(temp);
+
+                            }
+                        });
+
+                    }
+                }).start();
+            }
+            else ;//resultDisplay.setText("Failed! Location unavailable...");
+        } else {
+            Log.d(TAG, "Device "
+
+                    + mBTDevice + " is incompatible... Can't write here!");
+        }
+    }
+
+
+    public void sendRequestPublicKey (View view) {
+        Log.d(TAG, "Sending and requesting Public Key...");
+        //t.clearComposingText();
+        if (mBTDevice == null) return;
+        Log.e(TAG, "Compatibility: " + mBluetoothConnection.isIncompatibleDevice + " - Device: " + mBTDevice.getName());
+        if (!mBluetoothConnection.isIncompatibleDevice) {
+            if (true) {
+                String reqPOL = "My Public Key is: " + myPublicKey;
+                byte[] bytes = reqPOL.getBytes(Charset.defaultCharset());
+                mBluetoothConnection.write(bytes);
+
+                new Thread( new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            Thread.sleep(3000);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        witnessKey = getCurrentMessage();
+                        System.out.println(witnessKey);
+                        String temp = "" + reqPOL + "\nHis Public key is: " + witnessKey.substring(0, 10);
+
+                        Log.d(TAG, temp);
+
+                        runOnUiThread(new Runnable() {
+
+                            @Override
+                            public void run() {
+
+                                t.setText(temp);
+
+                            }
+                        });
+                    }
+                }).start();
+                //resultDisplay.setText("Success!");
+            }
+            else ;//resultDisplay.setText("Failed! Location unavailable...");
+        } else {
+            Log.d(TAG, "Device "
+
+                    + mBTDevice + " is incompatible... Can't write here!");
+        }
+    }
+
+
+
+
+
+
+
+
+
+    public void sendLocation (View view) {
+
+        //t.clearComposingText();
+        if (mBTDevice == null) return;
+        Log.e(TAG, "Compatibility: " + mBluetoothConnection.isIncompatibleDevice + " - Device: " + mBTDevice.getName());
+        if (!mBluetoothConnection.isIncompatibleDevice) {
+            if (!currentLocation.equals("Unavailable")) {
+                String locationmessage = currentLocation;
+
+                new Thread( new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.d(TAG, "Encrypting Message...");
+                        String encrypted = "PoL Request: " + encryptRSAToString(locationmessage, witnessKey);
+                        Log.d(TAG, "Finished encrypting...");
+
+                        Log.d(TAG, "Encrypted data: " + encrypted);
+
+                        Log.d(TAG, "Signing Message...");
+                        byte[] bytes = encrypted.getBytes(Charset.defaultCharset());
+                        String prefix = PERSONAL_MESSAGE_PREFIX + encrypted.length();
+                        byte[] msgHash = Hash.sha3((prefix + encrypted).getBytes());
+
+                        Sign.SignatureData signature = Sign.signMessage(bytes, credentials.getEcKeyPair(), true);
+                        int v = signature.getV();
+                        Log.d(TAG, "Encrypted data R: " + "0x" + Keys.getAddress(new BigInteger(1, signature.getR())));
+                        Log.d(TAG, "Encrypted data S: " + "0x" + Keys.getAddress(new BigInteger(1, signature.getS())));
+                        Log.d(TAG, "Encrypted data V: " + "0x" + Keys.getAddress(BigInteger.valueOf(v)));
+                        Log.d(TAG, "Finished signing...");
+
+                        String pubKey = null;
+                        try {
+                            pubKey = Sign.signedMessageToKey(bytes, signature).toString(16);
+                        } catch (SignatureException e) {
+                            e.printStackTrace();
+                        }
+                        String signerAddress = "0x" + Keys.getAddress(pubKey);
+
+                        Log.e(TAG, "My Publickey: " + myPublicKey + "\nPublickey: " + signerAddress);
+
+                        mBluetoothConnection.write(bytes);
+
+
+                        try {
+                            Thread.sleep(500);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        String temp = "" + encrypted + "\n" + getCurrentMessage();
+
+                        Log.d(TAG, temp);
+                        runOnUiThread(new Runnable() {
+
+                            @Override
+                            public void run() {
+
+                                t.setText(temp);
+
+                            }
+                        });
+                    }
+                }).start();
                 //resultDisplay.setText("Success!");
             }
             else ;//resultDisplay.setText("Failed! Location unavailable...");
@@ -522,6 +772,202 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
     public String getCurrentMessage() {
         return mBluetoothConnection.currentMessage;
+    }
+
+    public void dothis(View view) {
+        //CHECKSTYLE:OFF
+        String signature = "0x2c6401216c9031b9a6fb8cbfccab4fcec6c951cdf40e2320108d1856eb532250576865fbcd452bcdc4c57321b619ed7a9cfd38bd973c3e1e0243ac2777fe9d5b1b";
+//        String signature = "0x0993fdb1eee17965ce2ad068292f0d99280a0539686e47f7ce3358c6a6c52f8b8e3914f43a25c446";
+//        0x3bc843a917d6c19c487c1d0c660cdd61389ce2a7651ee3171bcc212ffddca164
+//        0x0993fdb1eee17965ce2ad068292f0d99280a0539
+        //CHECKSTYLE:ON
+        String address = "0x31b26e43651e9371c88af3d36c14cfd938baf4fd";
+        String message = "v0G9u7huK4mJb2K1";
+
+        String prefix = PERSONAL_MESSAGE_PREFIX + message.length();
+        byte[] msgHash = Hash.sha3( (prefix + message).getBytes() );
+
+        byte[] signatureBytes = Numeric.hexStringToByteArray( signature );
+        byte v = signatureBytes[64];
+        if (v < 27) {
+            v += 27;
+        }
+
+        Sign.SignatureData sd = new Sign.SignatureData(
+                v,
+                (byte[]) Arrays.copyOfRange( signatureBytes, 0, 32 ),
+                (byte[]) Arrays.copyOfRange( signatureBytes, 32, 64 ) );
+
+        String addressRecovered = null;
+        boolean match = false;
+
+        // Iterate for each possible key to recover
+        for (int i = 0; i < 4; i++) {
+            BigInteger publicKey = Sign.recoverFromSignature(
+                    (byte) i,
+                    new ECDSASignature( new BigInteger( 1, sd.getR() ), new BigInteger( 1, sd.getS() ) ),
+                    msgHash );
+
+            if (publicKey != null) {
+                addressRecovered = "0x" + Keys.getAddress( publicKey );
+
+                if (addressRecovered.equals( address )) {
+                    Log.e(TAG, "My Publickey: " + address + "\nPublickey: " + addressRecovered);
+                    match = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    public String encryptMessage (String plaintext) throws InvalidKeyException, NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException, BadPaddingException, IllegalBlockSizeException {
+
+        new Thread( new Runnable() {
+            @Override
+            public void run() {
+                Log.d(TAG, "Plaintext message: " + plaintext);
+
+                // generate a new public/private key pair to test with (note. you should only do this once and keep them!)
+                KeyPair kp = getKeyPair();
+                Log.d(TAG, "HERE");
+                PublicKey publicKey = kp.getPublic();
+                byte[] publicKeyBytes = publicKey.getEncoded();
+                String publicKeyBytesBase64 = new String(Base64.encode(publicKeyBytes, Base64.DEFAULT));
+
+                PrivateKey privateKey = kp.getPrivate();
+                byte[] privateKeyBytes = privateKey.getEncoded();
+                String privateKeyBytesBase64 = new String(Base64.encode(privateKeyBytes, Base64.DEFAULT));
+
+                // test encryption
+                String encrypted = encryptRSAToString(plaintext, publicKeyBytesBase64);
+                String encrypted2 = encryptRSAToString(plaintext, publicKeyBytesBase64);
+                Log.d(TAG, "Encrypted message 1: " + encrypted);
+                Log.d(TAG, "Encrypted message 2: " + encrypted2);
+
+                // test decryption
+                String decrypted = decryptRSAToString(encrypted, privateKeyBytesBase64);
+                String decrypted2 = decryptRSAToString(encrypted2, privateKeyBytesBase64);
+                Log.d(TAG, "Decrypted message 1: " + decrypted);
+                Log.d(TAG, "Decrypted message 2: " + decrypted2);
+
+            }
+        }).start();
+
+
+
+        return "";
+    }
+
+
+    public static KeyPair getKeyPair() {
+        KeyPair kp = null;
+        try {
+            KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
+            kpg.initialize(2048);
+            kp = kpg.generateKeyPair();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return kp;
+    }
+
+    public static String encryptRSAToString(String clearText, String publicKey) {
+        String encryptedBase64 = "";
+        try {
+            KeyFactory keyFac = KeyFactory.getInstance("RSA");
+            KeySpec keySpec = new X509EncodedKeySpec(Base64.decode(publicKey.trim().getBytes(), Base64.DEFAULT));
+            Key key = keyFac.generatePublic(keySpec);
+
+            // get an RSA cipher object and print the provider
+            final Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWITHSHA-256ANDMGF1PADDING");
+            // encrypt the plain text using the public key
+            cipher.init(Cipher.ENCRYPT_MODE, key);
+
+            byte[] encryptedBytes = cipher.doFinal(clearText.getBytes("UTF-8"));
+            encryptedBase64 = new String(Base64.encode(encryptedBytes, Base64.DEFAULT));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return encryptedBase64.replaceAll("(\\r|\\n)", "");
+    }
+
+    public static String decryptRSAToString(String encryptedBase64, String privateKey) {
+
+        String decryptedString = "";
+        try {
+            KeyFactory keyFac = KeyFactory.getInstance("RSA");
+            KeySpec keySpec = new PKCS8EncodedKeySpec(Base64.decode(privateKey.trim().getBytes(), Base64.DEFAULT));
+            Key key = keyFac.generatePrivate(keySpec);
+
+            // get an RSA cipher object and print the provider
+            final Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWITHSHA-256ANDMGF1PADDING");
+            // encrypt the plain text using the public key
+            cipher.init(Cipher.DECRYPT_MODE, key);
+
+            byte[] encryptedBytes = Base64.decode(encryptedBase64, Base64.DEFAULT);
+            byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
+            decryptedString = new String(decryptedBytes);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return decryptedString;
+    }
+
+
+
+    public void transferToContract(View view) {
+        if (destination.equals("Select Destination")) return;
+        Log.d( TAG, "Amount: " + BigInteger.valueOf(Integer.parseInt(textAmountToSend.getText().toString())) );
+        new Thread( new Runnable() {
+            String destination = spinner.getSelectedItem().toString();
+
+            BigInteger amount = BigInteger.valueOf(Integer.parseInt(textAmountToSend.getText().toString()));
+            @Override
+            public void run() {
+                BigInteger etherUnit = new BigInteger( "1000000000000000" );
+                BigInteger amountEther = amount.multiply(etherUnit);
+                Future<TransactionReceipt> isTransferred = transaction.transferToContract(destination, amount, amountEther).sendAsync();
+                TransactionReceipt transactionReceipt  = null;
+                try {
+                    transactionReceipt = isTransferred.get();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } catch (ExecutionException e) {
+                    e.printStackTrace();
+                }
+                if (transactionReceipt != null) {
+                    Log.d(TAG, "Amount " + amount + " transferred to contract successfully");
+                    Log.d(TAG, "Gas used: " + transactionReceipt.getGasUsed());
+                }
+
+            }
+        }).start();
+    }
+
+    public void confirmTransaction(View view) {
+        new Thread( new Runnable() {
+
+            @Override
+            public void run() {
+                Future<TransactionReceipt> isTransferred = transaction.confirmTransaction().sendAsync();
+                TransactionReceipt transactionReceipt  = null;
+                try {
+                    transactionReceipt = isTransferred.get();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } catch (ExecutionException e) {
+                    e.printStackTrace();
+                }
+                if (transactionReceipt != null) {
+                    Log.d(TAG, "PoL approved... Transaction confirmed successfully");
+                    Log.d(TAG, "Gas used: " + transactionReceipt.getGasUsed());
+                }
+
+            }
+        }).start();
     }
 
 }

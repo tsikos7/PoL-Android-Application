@@ -2,4 +2,11 @@
     <string name="app_name">Project Odyssey</string>
     <string name="edit_message">Enter a message</string>
     <string name="button_send">Send</string>
+    <string-array name="addresses">
+        <item>0x8810b36A2Cde364549D814C6023B24Ca8Bc37bF1</item>
+        <item>0xB88164B084213F0b91dbe55906f83840F9D28C66</item>
+        <item>0xFF9b26afe3D7D055eAb2dADB334f92Effc834a2b</item>
+        <item>0xF69870659eA07F920939DedfB6A28cD721Da8F29</item>
+        <item>0x3E877f2f819E1feec88336c4d75966637e21C6cC</item>
+    </string-array>
 </resources>

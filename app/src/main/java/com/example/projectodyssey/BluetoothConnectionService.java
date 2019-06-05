@@ -6,15 +6,31 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
 import android.content.Context;
+import android.util.Base64;
 import android.util.Log;
+
+import org.web3j.crypto.Credentials;
+import org.web3j.crypto.Sign;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
+import java.security.Key;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Signature;
+import java.security.spec.KeySpec;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import javax.crypto.Cipher;
 
 public class BluetoothConnectionService {
     private static final String TAG = "BluetoothConnectionServ";
@@ -25,6 +41,10 @@ public class BluetoothConnectionService {
 
     private final BluetoothAdapter mBluetoothAdapter;
     Context mContext;
+
+
+    String myPublicKey = "0x015Bbab8756B37d8D14e7ff7f915650b37161f39";
+    Credentials credentials = Credentials.create("629054BB24F430E96C6BFFC58F186371695BC3BFC695E76CEF54DAFCA460BC0C");
 
     private AcceptThread mInsecureAcceptThread;
 
@@ -37,6 +57,8 @@ public class BluetoothConnectionService {
     public String currentLocation;
     boolean justcancelled;
     boolean unlock;
+    String privateKey;
+    String proverPublicKey;
 
 
     private ConnectedThread mConnectedThread;
@@ -248,6 +270,7 @@ public class BluetoothConnectionService {
           private final BluetoothSocket mmSocket;
           private final InputStream mmInStream;
           private final OutputStream mmOutStream;
+          private KeyPair currentKeyPair;
 
          public ConnectedThread(BluetoothSocket socket) {
              Log.d(TAG, "ConnectedThread: Starting.");
@@ -295,8 +318,9 @@ public class BluetoothConnectionService {
                     Log.d(TAG, "InputStream: " + incomingMessage);
                     currentMessage = incomingMessage;
 
-                    if (currentMessage.startsWith("POL request: ")) respondPoL(currentMessage);
-
+                    if (currentMessage.startsWith("POL request: ")) respondPoL2(currentMessage);
+                    else if (currentMessage.startsWith("My Public Key is:")) respondPublicKey(currentMessage);
+                    else if (currentMessage.startsWith("PoL Request: ")) respondPoL(currentMessage);
 
                 } catch (IOException e) {
                     Log.e(TAG, "read: Error reading inputStream: " + e.getMessage());
@@ -328,7 +352,7 @@ public class BluetoothConnectionService {
 
         }
 
-        public void respondPoL (String message){
+        public void respondPoL2 (String message){
             Log.d(TAG, "Responding to PoL request...");
             String coordinates = message.replace("POL request: ", "");
 
@@ -364,6 +388,133 @@ public class BluetoothConnectionService {
 
         }
 
+        public void respondPoL (String message){
+            // Verify
+            Log.d(TAG, "Responding to PoL request...");
+            String encryptedMessage = message.replace("PoL Request: ", "");
+            Log.d(TAG, "Encrypted Message: " + encryptedMessage);
+            String coordinates = decryptRSAToString(encryptedMessage, privateKey);
+            Log.d(TAG, "Decrypted Message: " + coordinates);
+            String resPoL = coordsToString( coordinates );
+
+
+            // Check if coords are cool
+            // Send to contract
+
+            byte [] bytes2 = resPoL.getBytes(Charset.defaultCharset());
+            write(bytes2);
+
+
+        }
+
+        public String coordsToString(String coordinates) {
+             // GET coordinates X, Y
+            Log.d(TAG, "coordinates: " + coordinates + ", currentLocation: " + currentLocation);
+            Pattern p = Pattern.compile("\\d+");
+            Matcher m = p.matcher(coordinates);
+            Matcher m2 = p.matcher(currentLocation);
+            int[] requesterXY = new int[4];
+            int[] myXY = new int[4];
+            int i = 0;
+
+            while(m.find()) {
+                String temp = m.group();
+                if (temp.length() > 4) temp = temp.substring(0, 4);
+                requesterXY[i] = Integer.parseInt(temp);
+                Log.d(TAG, requesterXY[i++] + "\n");
+            }
+
+            i = 0;
+            while(m2.find()) {
+                String temp = m2.group();
+                if (temp.length() > 4) temp = temp.substring(0, 4);
+                myXY[i] = Integer.parseInt(temp);
+                Log.d(TAG, myXY[i++] + "\n");
+            }
+
+            String resPOL = "POL response: " + myXY[0] + "." + myXY[1] + ", " + myXY[2] + "." + myXY[3];
+            return resPOL;
+        }
+
+        public void respondPublicKey (String message){
+            Log.d(TAG, "Responding to Public Key request...");
+            proverPublicKey = message.replace("My Public Key is: ", "");
+
+            // CHECK IF PUBLIC KEY IS LEGIT
+            //Sign.SignatureData signature = Sign.signMessage(pro)
+            currentKeyPair = getKeyPair();
+            PublicKey publicKey = currentKeyPair.getPublic();
+            PrivateKey privateKeyTemp = currentKeyPair.getPrivate();
+            byte[] privateKeyBytes = privateKeyTemp.getEncoded();
+            String privateKeyBytesBase64 = new String(Base64.encode(privateKeyBytes, Base64.DEFAULT));
+            privateKey = privateKeyBytesBase64;
+
+            byte[] publicKeyBytes = publicKey.getEncoded();
+            String publicKeyBytesBase64 = new String( Base64.encode(publicKeyBytes, Base64.DEFAULT));
+            String response = "" + publicKeyBytesBase64;
+
+            byte [] bytes2 = response.getBytes(Charset.defaultCharset());
+            write(bytes2);
+
+
+        }
+
+        public KeyPair getKeyPair() {
+            KeyPair kp = null;
+            try {
+                KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
+                kpg.initialize(2048);
+                kp = kpg.generateKeyPair();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            return kp;
+        }
+
+        public String encryptRSAToString(String clearText, String publicKey) {
+            String encryptedBase64 = "";
+            try {
+                KeyFactory keyFac = KeyFactory.getInstance("RSA");
+                KeySpec keySpec = new X509EncodedKeySpec(Base64.decode(publicKey.trim().getBytes(), Base64.DEFAULT));
+                Key key = keyFac.generatePublic(keySpec);
+
+                // get an RSA cipher object and print the provider
+                final Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWITHSHA-256ANDMGF1PADDING");
+                // encrypt the plain text using the public key
+                cipher.init(Cipher.ENCRYPT_MODE, key);
+
+                byte[] encryptedBytes = cipher.doFinal(clearText.getBytes("UTF-8"));
+                encryptedBase64 = new String(Base64.encode(encryptedBytes, Base64.DEFAULT));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            return encryptedBase64.replaceAll("(\\r|\\n)", "");
+        }
+
+        public String decryptRSAToString(String encryptedBase64, String privateKey) {
+
+            String decryptedString = "";
+            try {
+                KeyFactory keyFac = KeyFactory.getInstance("RSA");
+                KeySpec keySpec = new PKCS8EncodedKeySpec(Base64.decode(privateKey.trim().getBytes(), Base64.DEFAULT));
+                Key key = keyFac.generatePrivate(keySpec);
+
+                // get an RSA cipher object and print the provider
+                final Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWITHSHA-256ANDMGF1PADDING");
+                // encrypt the plain text using the public key
+                cipher.init(Cipher.DECRYPT_MODE, key);
+
+                byte[] encryptedBytes = Base64.decode(encryptedBase64, Base64.DEFAULT);
+                byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
+                decryptedString = new String(decryptedBytes);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            return decryptedString;
+        }
 
 
         /**

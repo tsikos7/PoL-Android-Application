@@ -8,36 +8,49 @@
 
     <Button
         android:id="@+id/RequestPoL"
-        android:layout_width="271dp"
-        android:layout_height="wrap_content"
+        android:layout_width="wrap_content"
+        android:layout_height="50dp"
         android:layout_alignParentStart="true"
         android:layout_alignParentTop="true"
         android:layout_alignParentEnd="true"
         android:layout_marginStart="70dp"
-        android:layout_marginTop="38dp"
+        android:layout_marginTop="13dp"
         android:layout_marginEnd="70dp"
         android:onClick="requestPoL"
         android:text="Request Proof-of-Location" />
 
     <Button
-        android:id="@+id/Debugging"
-        android:layout_width="273dp"
-        android:layout_height="wrap_content"
+        android:id="@+id/Scanning"
+        android:layout_width="wrap_content"
+        android:layout_height="50dp"
         android:layout_below="@+id/RequestPoL"
         android:layout_alignParentStart="true"
         android:layout_alignParentEnd="true"
         android:layout_marginStart="70dp"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="7dp"
         android:layout_marginEnd="70dp"
-        android:onClick="OpenDebugging"
-        android:text="Debugging" />
+        android:onClick="dothis"
+        android:text="Encr-Decr" />
+
+    <!--<Button-->
+        <!--android:id="@+id/Scanning"-->
+        <!--android:layout_width="wrap_content"-->
+        <!--android:layout_height="50dp"-->
+        <!--android:layout_below="@+id/RequestPoL"-->
+        <!--android:layout_alignParentStart="true"-->
+        <!--android:layout_alignParentEnd="true"-->
+        <!--android:layout_marginStart="70dp"-->
+        <!--android:layout_marginTop="7dp"-->
+        <!--android:layout_marginEnd="70dp"-->
+        <!--android:onClick="btnDiscover"-->
+        <!--android:text="Scan" />-->
 
 
     <ListView
         android:id="@+id/lvNewDevices"
         android:layout_width="wrap_content"
         android:layout_height="150dp"
-        android:layout_below="@+id/Debugging"
+        android:layout_below="@+id/Scanning"
         android:layout_marginTop="15dp" />
 
 
@@ -48,9 +61,77 @@
         android:layout_below="@+id/lvNewDevices"
         android:layout_alignParentStart="true"
         android:layout_alignParentLeft="true"
+        android:layout_marginStart="0dp"
+        android:layout_marginLeft="0dp"
+        android:layout_marginTop="0dp"
         android:gravity="center"
         android:text=""
         android:textSize="16sp" />
+
+    <Button
+        android:id="@+id/sendEther"
+        android:layout_width="120dp"
+        android:layout_height="115dp"
+        android:layout_below="@+id/sendPublic"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="2dp"
+        android:layout_toEndOf="@+id/destAddresses"
+        android:onClick="transferToContract"
+        android:text="Send to Contract" />
+
+
+    <EditText
+        android:id="@+id/textAmount"
+        android:layout_width="239dp"
+        android:layout_height="50dp"
+        android:layout_below="@+id/destAddresses"
+        android:layout_alignParentStart="true"
+        android:layout_marginStart="15dp"
+        android:layout_marginTop="14dp"
+        android:text="1" />
+
+    <Button
+        android:id="@+id/confirmTransaction"
+        android:layout_width="369dp"
+        android:layout_height="50dp"
+        android:layout_below="@+id/textAmount"
+        android:layout_marginStart="-241dp"
+        android:layout_marginTop="12dp"
+        android:layout_toEndOf="@+id/destAddresses"
+        android:onClick="confirmTransaction"
+        android:text="Confirm Location" />
+
+    <Spinner
+        android:id="@+id/destAddresses"
+        android:layout_width="239dp"
+        android:layout_height="50dp"
+        android:layout_below="@+id/sendPublic"
+        android:layout_alignParentStart="true"
+        android:layout_marginStart="17dp"
+        android:layout_marginTop="1dp"
+        android:spinnerMode="dropdown" />
+
+    <Button
+        android:id="@+id/sendPublic"
+        android:layout_width="183dp"
+        android:layout_height="61dp"
+        android:layout_below="@+id/textView"
+        android:layout_alignParentStart="true"
+        android:layout_marginStart="15dp"
+        android:layout_marginTop="4dp"
+        android:onClick="sendRequestPublicKey"
+        android:text="Send Public" />
+
+    <Button
+        android:id="@+id/sendLocation"
+        android:layout_width="183dp"
+        android:layout_height="61dp"
+        android:layout_below="@+id/textView"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="4dp"
+        android:layout_toEndOf="@+id/sendPublic"
+        android:onClick="sendLocation"
+        android:text="Send Location" />
 
 
 </RelativeLayout>
