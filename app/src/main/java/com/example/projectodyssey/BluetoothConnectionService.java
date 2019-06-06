@@ -11,6 +11,7 @@ import android.util.Log;
 
 import org.web3j.crypto.Credentials;
 import org.web3j.crypto.Sign;
+import org.web3j.tuples.generated.Tuple2;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,6 +32,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.crypto.Cipher;
+
+import static java.lang.Math.pow;
 
 public class BluetoothConnectionService {
     private static final String TAG = "BluetoothConnectionServ";
@@ -391,12 +394,43 @@ public class BluetoothConnectionService {
         public void respondPoL (String message){
             // Verify
             Log.d(TAG, "Responding to PoL request...");
-            String encryptedMessage = message.replace("PoL Request: ", "");
-            Log.d(TAG, "Encrypted Message: " + encryptedMessage);
+            String incmessage = message.replace("PoL Request: ", "");
+            Log.d(TAG, "Encrypted Message: " + incmessage);
+            String [] messages = incmessage.split(":");
+            String encryptedMessage = messages[0];
+            String r = messages[1];
+            String s = messages[2];
+            String v = messages[3];
             String coordinates = decryptRSAToString(encryptedMessage, privateKey);
             Log.d(TAG, "Decrypted Message: " + coordinates);
             String resPoL = coordsToString( coordinates );
 
+            String[] coords = resPoL.split("/");
+            String[] mycoord = coords[0].split("-");
+            String[] hiscoord = coords[1].split("-");
+
+
+            String[] myXtemp = mycoord[0].split(",");
+            String[] myYtemp = mycoord[1].split(",");
+
+            String[] hisXtemp = hiscoord[0].split(",");
+            String[] hisYtemp = hiscoord[1].split(",");
+
+            int temp = Integer.parseInt(myXtemp[0]);
+            int temp2 = Integer.parseInt(myXtemp[1]);
+            double myX = temp + temp2 / 10000.0;
+            temp = Integer.parseInt(myYtemp[0]);
+            temp2 = Integer.parseInt(myYtemp[1]);
+            double myY = temp + temp2 / 10000.0;
+
+            temp = Integer.parseInt(hisXtemp[0]);
+            temp2 = Integer.parseInt(hisXtemp[1]);
+            double hisX = temp + temp2 / 10000.0;
+            temp = Integer.parseInt(hisYtemp[0]);
+            temp2 = Integer.parseInt(hisYtemp[1]);
+            double hisY = temp + temp2 / 10000.0;
+
+            Log.d(TAG, "My coords: " + myX + ", " + myY + " -- His coords: " + hisX + ", " + hisY);
 
             // Check if coords are cool
             // Send to contract
@@ -406,6 +440,7 @@ public class BluetoothConnectionService {
 
 
         }
+
 
         public String coordsToString(String coordinates) {
              // GET coordinates X, Y
@@ -432,7 +467,7 @@ public class BluetoothConnectionService {
                 Log.d(TAG, myXY[i++] + "\n");
             }
 
-            String resPOL = "POL response: " + myXY[0] + "." + myXY[1] + ", " + myXY[2] + "." + myXY[3];
+            String resPOL = myXY[0] + "," + myXY[1] + "-" + myXY[2] + "," + myXY[3] + "/" + requesterXY[0] + "," + requesterXY[1] + "-" + requesterXY[2] + "," + requesterXY[3];
             return resPOL;
         }
 

@@ -645,7 +645,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                     @Override
                     public void run() {
                         try {
-                            Thread.sleep(3000);
+                            Thread.sleep(5000);
                         } catch (InterruptedException e) {
                             e.printStackTrace();
                         }
@@ -708,10 +708,16 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                         byte[] msgHash = Hash.sha3((prefix + encrypted).getBytes());
 
                         Sign.SignatureData signature = Sign.signMessage(bytes, credentials.getEcKeyPair(), true);
-                        int v = signature.getV();
+                        String v = ":" + new String( new byte[] {signature.getV()});
+                        String r = ":" + new String(signature.getR());
+                        String s = ":" + new String(signature.getS());
+                        bytes = (encrypted + r + s + v).getBytes(Charset.defaultCharset());
+
+
+
                         Log.d(TAG, "Encrypted data R: " + "0x" + Keys.getAddress(new BigInteger(1, signature.getR())));
                         Log.d(TAG, "Encrypted data S: " + "0x" + Keys.getAddress(new BigInteger(1, signature.getS())));
-                        Log.d(TAG, "Encrypted data V: " + "0x" + Keys.getAddress(BigInteger.valueOf(v)));
+                        Log.d(TAG, "Encrypted data V: " + "0x" + Keys.getAddress(BigInteger.valueOf(signature.getV())));
                         Log.d(TAG, "Finished signing...");
 
                         String pubKey = null;
