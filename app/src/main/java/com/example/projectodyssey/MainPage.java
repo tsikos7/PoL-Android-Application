@@ -66,6 +66,8 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import android.util.Base64;
+
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -90,16 +92,16 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
     private static final String TAG = "MainPage";
     public static final String PERSONAL_MESSAGE_PREFIX = "\u0019Ethereum Signed Message:\n";
     // BLOCKCHAIN CONTRACT STUFF
-    String contractAddress = "0xa4B84814dC87C487e583cfd6d20390f263d4787A";
-    String greeterAddress = "0x504f2bD1E6E75809E98Ab887fE73bC98dF3bfBD5";
-    String url = "https://rinkeby.infura.io/v3/671362fca54b42b0a7c7f3c3126dc47b";
+    String contractAddress = "0xd2Af918B0c5e1960F1Ebed8EC8bcb3ca1E62876F";
+    String url = "https://ropsten.infura.io/v3/671362fca54b42b0a7c7f3c3126dc47b";
+
     Web3j web3j = Web3j.build(new InfuraHttpService(url));
 
     BigInteger gasLimit = BigInteger.valueOf(6700000L);
     BigInteger gasPrice = BigInteger.valueOf(22_000_000_000L);
 
-    Credentials credentials = Credentials.create("629054BB24F430E96C6BFFC58F186371695BC3BFC695E76CEF54DAFCA460BC0C");
-    String myPublicKey = "0x015Bbab8756B37d8D14e7ff7f915650b37161f39";
+    Credentials credentials = Credentials.create("8A6A1F416B7A6756BC89021AED2239F6F1EC3B165E81317382E256BA199A2F5D");
+    String myPublicKey = "0x3A3f446e622130EaccA9FdC1A743cE66CDae025d";
 
     private static SecretKeySpec secretKey;
     private static byte[] key;
@@ -708,18 +710,34 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                         byte[] msgHash = Hash.sha3((prefix + encrypted).getBytes());
 
                         Sign.SignatureData signature = Sign.signMessage(bytes, credentials.getEcKeyPair(), true);
-                        String v = ":" + new String( new byte[] {signature.getV()});
-                        String r = ":" + new String(signature.getR());
-                        String s = ":" + new String(signature.getS());
-                        bytes = (encrypted + r + s + v).getBytes(Charset.defaultCharset());
+                        byte [] v = new byte[] {signature.getV()};
+                        byte [] r = signature.getR();
+                        byte [] s = signature.getS();
 
+                        byte[] bytes2 = new byte[r.length + s.length + v.length + encrypted.getBytes().length];
 
+                        System.arraycopy(encrypted.getBytes(), 0, bytes2, 0, encrypted.getBytes().length);
+                        System.arraycopy(r, 0, bytes2, encrypted.getBytes().length, r.length);
+                        System.arraycopy(s, 0, bytes2, encrypted.getBytes().length + r.length, s.length);
+                        System.arraycopy(v, 0, bytes2, encrypted.getBytes().length + r.length + s.length, v.length);
+                        //String r = ":" + new String(signature.getR());
+                        //Log.e(TAG, r);
+                        //String s = ":" + new String(signature.getS());
+
+                        //byte [] bytes2 = encrypted.getBytes(Charset.defaultCharset());
+
+                        Log.e(TAG, "r: " + Arrays.toString(r));
+                        Log.e(TAG, "s: " + Arrays.toString(s));
+                        Log.e(TAG, "v: " + Arrays.toString(v));
 
                         Log.d(TAG, "Encrypted data R: " + "0x" + Keys.getAddress(new BigInteger(1, signature.getR())));
                         Log.d(TAG, "Encrypted data S: " + "0x" + Keys.getAddress(new BigInteger(1, signature.getS())));
                         Log.d(TAG, "Encrypted data V: " + "0x" + Keys.getAddress(BigInteger.valueOf(signature.getV())));
                         Log.d(TAG, "Finished signing...");
 
+
+                        Log.e(TAG, Arrays.toString( bytes ));
+                        // transfer this to BluetoothConnectionService
                         String pubKey = null;
                         try {
                             pubKey = Sign.signedMessageToKey(bytes, signature).toString(16);
@@ -730,7 +748,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
                         Log.e(TAG, "My Publickey: " + myPublicKey + "\nPublickey: " + signerAddress);
 
-                        mBluetoothConnection.write(bytes);
+                        mBluetoothConnection.write(bytes2);
 
 
                         try {
@@ -925,6 +943,8 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
 
     public void transferToContract(View view) {
+        destination = spinner.getSelectedItem().toString();
+        Log.d(TAG, "HEY: " + destination);
         if (destination.equals("Select Destination")) return;
         Log.d( TAG, "Amount: " + BigInteger.valueOf(Integer.parseInt(textAmountToSend.getText().toString())) );
         new Thread( new Runnable() {
@@ -935,7 +955,9 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
             public void run() {
                 BigInteger etherUnit = new BigInteger( "1000000000000000" );
                 BigInteger amountEther = amount.multiply(etherUnit);
-                Future<TransactionReceipt> isTransferred = transaction.transferToContract(destination, amount, amountEther).sendAsync();
+
+                BigInteger numProofs = new BigInteger( "1" );
+                Future<TransactionReceipt> isTransferred = transaction.transferToContract(destination, amount, numProofs, amountEther).sendAsync();
                 TransactionReceipt transactionReceipt  = null;
                 try {
                     transactionReceipt = isTransferred.get();

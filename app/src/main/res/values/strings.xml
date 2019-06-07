@@ -4,6 +4,7 @@
     <string name="button_send">Send</string>
     <string-array name="addresses">
         <item>0x8810b36A2Cde364549D814C6023B24Ca8Bc37bF1</item>
+        <item>0x4C74B73c928E13016609d1b6788Ad7eb174ab6A2</item>
         <item>0xB88164B084213F0b91dbe55906f83840F9D28C66</item>
         <item>0xFF9b26afe3D7D055eAb2dADB334f92Effc834a2b</item>
         <item>0xF69870659eA07F920939DedfB6A28cD721Da8F29</item>

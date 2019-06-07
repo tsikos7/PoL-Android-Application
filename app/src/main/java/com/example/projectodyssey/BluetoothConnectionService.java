@@ -10,12 +10,19 @@ import android.util.Base64;
 import android.util.Log;
 
 import org.web3j.crypto.Credentials;
+import org.web3j.crypto.Keys;
 import org.web3j.crypto.Sign;
+import org.web3j.protocol.Web3j;
+import org.web3j.protocol.core.methods.response.TransactionReceipt;
+import org.web3j.protocol.infura.InfuraHttpService;
 import org.web3j.tuples.generated.Tuple2;
+import org.web3j.tx.FastRawTransactionManager;
+import org.web3j.tx.TransactionManager;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.math.BigInteger;
 import java.nio.charset.Charset;
 import java.security.Key;
 import java.security.KeyFactory;
@@ -24,15 +31,19 @@ import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
+import java.security.SignatureException;
 import java.security.spec.KeySpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Arrays;
 import java.util.UUID;
+import java.util.concurrent.Future;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.crypto.Cipher;
 
+import static java.lang.Math.abs;
 import static java.lang.Math.pow;
 
 public class BluetoothConnectionService {
@@ -45,9 +56,18 @@ public class BluetoothConnectionService {
     private final BluetoothAdapter mBluetoothAdapter;
     Context mContext;
 
+    String contractAddress = "0x627d018c43e33F2C7aAD825416a7610d44448896";//"0xa4B84814dC87C487e583cfd6d20390f263d4787A";
+    String url = "https://rinkeby.infura.io/v3/671362fca54b42b0a7c7f3c3126dc47b";
+    Web3j web3j = Web3j.build(new InfuraHttpService(url));
 
-    String myPublicKey = "0x015Bbab8756B37d8D14e7ff7f915650b37161f39";
-    Credentials credentials = Credentials.create("629054BB24F430E96C6BFFC58F186371695BC3BFC695E76CEF54DAFCA460BC0C");
+    BigInteger gasLimit = BigInteger.valueOf(6700000L);
+    BigInteger gasPrice = BigInteger.valueOf(22_000_000_000L);
+
+    Credentials credentials = Credentials.create("8A6A1F416B7A6756BC89021AED2239F6F1EC3B165E81317382E256BA199A2F5D");
+
+    String myPublicKey = "0x3A3f446e622130EaccA9FdC1A743cE66CDae025d";
+    TransactionManager fastRawTxMgr;
+    Transaction transaction;
 
     private AcceptThread mInsecureAcceptThread;
 
@@ -309,6 +329,12 @@ public class BluetoothConnectionService {
 
             unlock = true;
 
+            // BLOCKCHAIN CONTRACT STUFF
+
+            fastRawTxMgr = new FastRawTransactionManager(web3j, credentials);
+
+            transaction = Transaction.load(contractAddress, web3j, fastRawTxMgr, gasPrice, gasLimit);
+
 
 
             // Keep listening to the input stream until an exception occurs
@@ -323,7 +349,7 @@ public class BluetoothConnectionService {
 
                     if (currentMessage.startsWith("POL request: ")) respondPoL2(currentMessage);
                     else if (currentMessage.startsWith("My Public Key is:")) respondPublicKey(currentMessage);
-                    else if (currentMessage.startsWith("PoL Request: ")) respondPoL(currentMessage);
+                    else if (currentMessage.startsWith("PoL Request: ")) respondPoL(buffer, bytes);
 
                 } catch (IOException e) {
                     Log.e(TAG, "read: Error reading inputStream: " + e.getMessage());
@@ -391,17 +417,32 @@ public class BluetoothConnectionService {
 
         }
 
-        public void respondPoL (String message){
+        public void respondPoL (byte [] bytes, int size){
             // Verify
             Log.d(TAG, "Responding to PoL request...");
-            String incmessage = message.replace("PoL Request: ", "");
-            Log.d(TAG, "Encrypted Message: " + incmessage);
-            String [] messages = incmessage.split(":");
-            String encryptedMessage = messages[0];
-            String r = messages[1];
-            String s = messages[2];
-            String v = messages[3];
-            String coordinates = decryptRSAToString(encryptedMessage, privateKey);
+
+            Log.e(TAG, "Full message is: " + new String(bytes, 0, size));
+            byte [] r, s, v, encrypted;
+            r = new byte[32];
+            s = new byte[32];
+            v = new byte[1];
+            encrypted = new byte[size-65];
+
+
+            System.arraycopy(bytes, 0, encrypted, 0, size-65);
+            System.arraycopy(bytes, size-65, r, 0, 32);
+            System.arraycopy(bytes, size-33, s, 0, 32);
+            System.arraycopy(bytes, size-1, v, 0, 1);
+
+            Log.e(TAG, Arrays.toString(bytes));
+            Log.e(TAG, "size: " + encrypted.length + ", " + Arrays.toString(encrypted));
+
+
+            String encryptedMessage = new String(encrypted, 0, encrypted.length);
+            String encryptedMessageOnly = encryptedMessage.replace("PoL Request: ", "");
+            Log.d(TAG, "Encrypted Message: " + encryptedMessageOnly);
+
+            String coordinates = decryptRSAToString(encryptedMessageOnly, privateKey);
             Log.d(TAG, "Decrypted Message: " + coordinates);
             String resPoL = coordsToString( coordinates );
 
@@ -432,15 +473,78 @@ public class BluetoothConnectionService {
 
             Log.d(TAG, "My coords: " + myX + ", " + myY + " -- His coords: " + hisX + ", " + hisY);
 
+            // Verify Signature
+            byte vByte = v[0];
+
+            Sign.SignatureData signature = new Sign.SignatureData(vByte, r, s);
+            if (!verifySignature(encryptedMessage.getBytes(Charset.defaultCharset()), signature)) {
+                Log.e(TAG, "Signature does not match");
+                return;
+            }
+
+
             // Check if coords are cool
+            if (!checkCoords(myX, myY, hisX, hisY)) {
+                Log.e(TAG, "Coordinates do not match");
+                return;
+            }
+
             // Send to contract
+            BigInteger x1 = BigInteger.valueOf((int) (myX*10000));
+            BigInteger y1 = BigInteger.valueOf((int) (myY*10000));
+            BigInteger x2 = BigInteger.valueOf((int) (hisX*10000));
+            BigInteger y2 = BigInteger.valueOf((int) (hisY*10000));
+
+
+            // Fix this shit here!!!
+            TransactionReceipt transactionReceipt = null;
+            try {
+                ;//transactionReceipt = transaction.witnessProof(x1, y1, x2, y2, proverPublicKey).send();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            if (transactionReceipt != null) {
+                Log.d(TAG, "PoL approved... Transaction confirmed successfully");
+                Log.d(TAG, "Gas used: " + transactionReceipt.getGasUsed());
+            }
 
             byte [] bytes2 = resPoL.getBytes(Charset.defaultCharset());
             write(bytes2);
+            // Up until here!!!
 
 
         }
 
+        public Boolean verifySignature (byte [] bytes, Sign.SignatureData signature)  {
+
+            Log.e(TAG, "r: " + Arrays.toString(signature.getR()));
+            Log.e(TAG, "s: " + Arrays.toString(signature.getS()));
+            byte [] v = {signature.getV()};
+            Log.e(TAG, "v: " + Arrays.toString(v));
+
+            String pubKey = null;
+            Log.e(TAG, Arrays.toString( bytes ));
+            try {
+                pubKey = Sign.signedMessageToKey(bytes, signature).toString(16);
+            } catch (SignatureException e) {
+                e.printStackTrace();
+            }
+            String signerAddress = "0x" + Keys.getAddress(pubKey);
+
+            Log.d(TAG, "My Publickey: " + proverPublicKey + "\nPublickey: " + signerAddress);
+
+            if ((proverPublicKey.toUpperCase()).equals(signerAddress.toUpperCase())) return true;
+            else return false;
+        }
+
+        public Boolean checkCoords (double myX, double myY, double hisX, double hisY) {
+             double difX, difY;
+             difX = abs(myX - hisX);
+             difY = abs(myY - hisY);
+
+             if (difX <= 1000 && difY <= 1000) return true;
+             return false;
+        }
 
         public String coordsToString(String coordinates) {
              // GET coordinates X, Y
@@ -456,7 +560,6 @@ public class BluetoothConnectionService {
                 String temp = m.group();
                 if (temp.length() > 4) temp = temp.substring(0, 4);
                 requesterXY[i] = Integer.parseInt(temp);
-                Log.d(TAG, requesterXY[i++] + "\n");
             }
 
             i = 0;
@@ -464,7 +567,6 @@ public class BluetoothConnectionService {
                 String temp = m2.group();
                 if (temp.length() > 4) temp = temp.substring(0, 4);
                 myXY[i] = Integer.parseInt(temp);
-                Log.d(TAG, myXY[i++] + "\n");
             }
 
             String resPOL = myXY[0] + "," + myXY[1] + "-" + myXY[2] + "," + myXY[3] + "/" + requesterXY[0] + "," + requesterXY[1] + "-" + requesterXY[2] + "," + requesterXY[3];
@@ -474,7 +576,6 @@ public class BluetoothConnectionService {
         public void respondPublicKey (String message){
             Log.d(TAG, "Responding to Public Key request...");
             proverPublicKey = message.replace("My Public Key is: ", "");
-
             // CHECK IF PUBLIC KEY IS LEGIT
             //Sign.SignatureData signature = Sign.signMessage(pro)
             currentKeyPair = getKeyPair();
