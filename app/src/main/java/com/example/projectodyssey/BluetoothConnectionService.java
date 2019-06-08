@@ -56,8 +56,8 @@ public class BluetoothConnectionService {
     private final BluetoothAdapter mBluetoothAdapter;
     Context mContext;
 
-    String contractAddress = "0x627d018c43e33F2C7aAD825416a7610d44448896";//"0xa4B84814dC87C487e583cfd6d20390f263d4787A";
-    String url = "https://rinkeby.infura.io/v3/671362fca54b42b0a7c7f3c3126dc47b";
+    String contractAddress = "0xd2Af918B0c5e1960F1Ebed8EC8bcb3ca1E62876F";
+    String url = "https://ropsten.infura.io/v3/671362fca54b42b0a7c7f3c3126dc47b";
     Web3j web3j = Web3j.build(new InfuraHttpService(url));
 
     BigInteger gasLimit = BigInteger.valueOf(6700000L);
@@ -78,6 +78,7 @@ public class BluetoothConnectionService {
     boolean isIncompatibleDevice;
     public String currentMessage;
     public String currentLocation;
+    public boolean lock;
     boolean justcancelled;
     boolean unlock;
     String privateKey;
@@ -93,6 +94,7 @@ public class BluetoothConnectionService {
         unlock = false;
         currentMessage = "Unavailable";
         currentLocation = "Unavailable";
+        lock = false;
         mContext = context;
         start();
     }
@@ -261,20 +263,39 @@ public class BluetoothConnectionService {
 
     }
 
+
+    public void showProgressDialog () {
+        mProgressDialog = ProgressDialog.show(mContext, "Connecting Bluetooth", "Please wait...", true);
+    }
+
+    public void dismissProgressDialog () {
+        mProgressDialog.dismiss();
+    }
+
     /**
      * AcceptThread starts and sits waiting for a connection
      * Then ConnectThread starts and attempts to make a connection with
      * the other devices' AcceptThread
      **/
+
+
+
+
      public int startClient (BluetoothDevice device, UUID uuid) {
          Log.d(TAG, "startClient: Started.");
 
+
          // initprogress dialog
-         mProgressDialog = ProgressDialog.show(mContext, "Connecting Bluetooth", "Please wait...", true);
+         //showProgressDialog();
 
          mConnectThread = new ConnectThread(device, uuid);
          mConnectThread.start();
-
+         try {
+             mConnectThread.join();
+         } catch (InterruptedException e) {
+             e.printStackTrace();
+         }
+         //dismissProgressDialog();
          return 0;
      }
 
@@ -282,6 +303,8 @@ public class BluetoothConnectionService {
          if (mConnectedThread != null)
          mConnectedThread.cancel();
      }
+
+
 
 
     /**
@@ -303,12 +326,16 @@ public class BluetoothConnectionService {
              OutputStream tmpOut = null;
 
              // dismiss the ProgressDialog when connection is established
+
+
+             Log.e(TAG, "lock: " + lock);
+             // HERE
              try {
-                 mProgressDialog.dismiss();
-             }catch (NullPointerException e) {
+                 Thread.sleep(200);
+             } catch (InterruptedException e) {
                  e.printStackTrace();
              }
-
+             //lock = false;
 
              try {
                  tmpIn = mmSocket.getInputStream();
@@ -336,7 +363,7 @@ public class BluetoothConnectionService {
             transaction = Transaction.load(contractAddress, web3j, fastRawTxMgr, gasPrice, gasLimit);
 
 
-
+            lock = true;
             // Keep listening to the input stream until an exception occurs
             while (true) {
                 // Read from the input stream
@@ -421,7 +448,6 @@ public class BluetoothConnectionService {
             // Verify
             Log.d(TAG, "Responding to PoL request...");
 
-            Log.e(TAG, "Full message is: " + new String(bytes, 0, size));
             byte [] r, s, v, encrypted;
             r = new byte[32];
             s = new byte[32];
@@ -434,9 +460,6 @@ public class BluetoothConnectionService {
             System.arraycopy(bytes, size-33, s, 0, 32);
             System.arraycopy(bytes, size-1, v, 0, 1);
 
-            Log.e(TAG, Arrays.toString(bytes));
-            Log.e(TAG, "size: " + encrypted.length + ", " + Arrays.toString(encrypted));
-
 
             String encryptedMessage = new String(encrypted, 0, encrypted.length);
             String encryptedMessageOnly = encryptedMessage.replace("PoL Request: ", "");
@@ -447,18 +470,25 @@ public class BluetoothConnectionService {
             String resPoL = coordsToString( coordinates );
 
             String[] coords = resPoL.split("/");
+            Log.e(TAG, "" + coords[0] + ", " + coords[1]);
             String[] mycoord = coords[0].split("-");
+            Log.e(TAG, "" + mycoord[0] + ", " + mycoord[1]);
             String[] hiscoord = coords[1].split("-");
-
+            Log.e(TAG, "" + hiscoord[0] + ", " + hiscoord[1]);
 
             String[] myXtemp = mycoord[0].split(",");
+            Log.e(TAG, "" + myXtemp[0] + ", " + myXtemp[1]);
             String[] myYtemp = mycoord[1].split(",");
+            Log.e(TAG, "" + myYtemp[0] + ", " + myYtemp[1]);
 
             String[] hisXtemp = hiscoord[0].split(",");
+            Log.e(TAG, "" + hisXtemp[0] + ", " + hisXtemp[1]);
             String[] hisYtemp = hiscoord[1].split(",");
+            Log.e(TAG, "" + hisYtemp[0] + ", " + hisYtemp[1]);
 
             int temp = Integer.parseInt(myXtemp[0]);
             int temp2 = Integer.parseInt(myXtemp[1]);
+
             double myX = temp + temp2 / 10000.0;
             temp = Integer.parseInt(myYtemp[0]);
             temp2 = Integer.parseInt(myYtemp[1]);
@@ -476,8 +506,14 @@ public class BluetoothConnectionService {
             // Verify Signature
             byte vByte = v[0];
 
+            String signerAddress;
             Sign.SignatureData signature = new Sign.SignatureData(vByte, r, s);
-            if (!verifySignature(encryptedMessage.getBytes(Charset.defaultCharset()), signature)) {
+            signerAddress = verifySignature(encryptedMessage.getBytes(Charset.defaultCharset()), signature);
+
+            Log.e(TAG, "signerAddress: " + signerAddress);
+            Log.e(TAG, "proverPublicKey: " + proverPublicKey);
+
+            if (signerAddress.equals("null")) {
                 Log.e(TAG, "Signature does not match");
                 return;
             }
@@ -497,9 +533,11 @@ public class BluetoothConnectionService {
 
 
             // Fix this shit here!!!
+            Log.e(TAG, "x1: "+ x1 + "y1: " + y1 + "x2: "+ x2 +"y2: "+ y2 +"signerAddress: " + signerAddress);
             TransactionReceipt transactionReceipt = null;
             try {
-                ;//transactionReceipt = transaction.witnessProof(x1, y1, x2, y2, proverPublicKey).send();
+                transactionReceipt = transaction.witnessProof(x1, y1, x2, y2, signerAddress).send();
+                //transactionReceipt = transaction.returnTransaction(signerAddress).send();
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -515,12 +553,9 @@ public class BluetoothConnectionService {
 
         }
 
-        public Boolean verifySignature (byte [] bytes, Sign.SignatureData signature)  {
+        public String verifySignature (byte [] bytes, Sign.SignatureData signature)  {
 
-            Log.e(TAG, "r: " + Arrays.toString(signature.getR()));
-            Log.e(TAG, "s: " + Arrays.toString(signature.getS()));
             byte [] v = {signature.getV()};
-            Log.e(TAG, "v: " + Arrays.toString(v));
 
             String pubKey = null;
             Log.e(TAG, Arrays.toString( bytes ));
@@ -533,8 +568,8 @@ public class BluetoothConnectionService {
 
             Log.d(TAG, "My Publickey: " + proverPublicKey + "\nPublickey: " + signerAddress);
 
-            if ((proverPublicKey.toUpperCase()).equals(signerAddress.toUpperCase())) return true;
-            else return false;
+            if ((proverPublicKey.toUpperCase()).equals(signerAddress.toUpperCase())) return signerAddress;
+            else return "null";
         }
 
         public Boolean checkCoords (double myX, double myY, double hisX, double hisY) {
@@ -558,15 +593,17 @@ public class BluetoothConnectionService {
 
             while(m.find()) {
                 String temp = m.group();
+                Log.d(TAG, temp);
                 if (temp.length() > 4) temp = temp.substring(0, 4);
-                requesterXY[i] = Integer.parseInt(temp);
+                requesterXY[i++] = Integer.parseInt(temp);
             }
 
             i = 0;
             while(m2.find()) {
                 String temp = m2.group();
+                Log.d(TAG, temp);
                 if (temp.length() > 4) temp = temp.substring(0, 4);
-                myXY[i] = Integer.parseInt(temp);
+                myXY[i++] = Integer.parseInt(temp);
             }
 
             String resPOL = myXY[0] + "," + myXY[1] + "-" + myXY[2] + "," + myXY[3] + "/" + requesterXY[0] + "," + requesterXY[1] + "-" + requesterXY[2] + "," + requesterXY[3];

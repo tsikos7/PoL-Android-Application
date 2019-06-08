@@ -2,6 +2,7 @@ package com.example.projectodyssey;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.BroadcastReceiver;
@@ -9,11 +10,15 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
@@ -67,7 +72,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import android.util.Base64;
 
+import com.kenai.jffi.Main;
+
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -111,7 +119,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
     TransactionManager fastRawTxMgr =new FastRawTransactionManager(web3j, credentials);
     Greeter greeter;
     Transaction transaction;
-
+    ProgressDialog mProgressDialog;
 
     // BLUETOOTH STUFF
     Button btnDebug;
@@ -125,9 +133,11 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
     Spinner spinner;
     String destination;
     String witnessKey;
+    boolean colors[] = new boolean[100];
+
 
     BluetoothAdapter mBluetoothAdapter;
-    BluetoothConnectionService mBluetoothConnection;
+    BluetoothConnectionService [] mBluetoothConnection = new BluetoothConnectionService[8];
     BluetoothDevice mBTDevice;
     private static final UUID MY_UUID_INSECURE = UUID.fromString("8ce255c0-200a-11e0-ac64-0800200c9a66");
 
@@ -138,20 +148,21 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
 
     public ArrayList<BluetoothDevice> mBTDevices = new ArrayList<>();
+    public ArrayList<BluetoothDevice> mBondedDevices = new ArrayList<>();
 
     public DeviceListAdapter mDeviceListAdapter;
-
+    View lastTouchedView;
     ListView lvNewDevices;
 
     @Override
     protected void onDestroy() {
         Log.d(TAG, "onDestroy: called.");
         super.onDestroy();
-        unregisterReceiver(mBroadcastReceiver1);
+        //unregisterReceiver(mBroadcastReceiver1);
         unregisterReceiver(mBroadcastReceiver2);
         unregisterReceiver(mBroadcastReceiver3);
         unregisterReceiver(mBroadcastReceiver4);
-        //mBluetoothAdapter.cancelDiscovery();
+        mBluetoothAdapter.cancelDiscovery();
     }
 
     @Override
@@ -161,7 +172,6 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
         // BLOCKCHAIN CONTRACT STUFF
         transaction = Transaction.load(contractAddress, web3j, fastRawTxMgr, gasPrice, gasLimit);
-
 
         btnSendEther = (Button) findViewById(R.id.sendEther);
         textAmountToSend = (EditText) findViewById(R.id.textAmount);
@@ -183,6 +193,9 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 //            }
 //
 //        });
+
+
+
         btnRequestPoL = (Button) findViewById(R.id.RequestPoL);
         btnONOFF = (Button) findViewById(R.id.btnONOFF);
         btnStartConnection = (Button) findViewById(R.id.btnStartConnection);
@@ -196,6 +209,18 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
+
+        Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
+        // If there are paired devices
+        Log.d(TAG, "Bonded Devices:");
+
+        if (pairedDevices.size() > 0) {
+            // Loop through paired devices
+            for (BluetoothDevice device : pairedDevices) {
+                // Add the name and address to an array adapter to show in a ListView
+                mBondedDevices.add(device);
+            }
+        }
 
         mBTDevices = new ArrayList<>();
 
@@ -233,7 +258,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
                 currentLocation = lon + ", " + lat;
 
-                if (mBluetoothConnection != null)mBluetoothConnection.currentLocation = currentLocation;
+                if (mBluetoothConnection[0] != null)mBluetoothConnection[0].currentLocation = currentLocation;
 
 
             }
@@ -263,7 +288,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         enableBT();
         btnEnableDisable_Discoverable();
 
-        mBluetoothConnection = new BluetoothConnectionService(MainPage.this);
+        mBluetoothConnection[0] = new BluetoothConnectionService(MainPage.this);
         btnDiscover(null);
 
         //changeGreeting();
@@ -386,7 +411,11 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
             if (action.equals(BluetoothDevice.ACTION_FOUND)){
                 BluetoothDevice device = intent.getParcelableExtra (BluetoothDevice.EXTRA_DEVICE);
-                if (device.getName() != null) mBTDevices.add(device);
+                if (device.getName() != null) {
+                    for (BluetoothDevice dev : mBondedDevices) {
+                        if (dev.getAddress().equals(device.getAddress())) mBTDevices.add( device );
+                    }
+                }
                 Log.d(TAG, "onReceive: " + device.getName() + ": " + device.getAddress());
                 mDeviceListAdapter = new DeviceListAdapter(context, R.layout.device_adapter_view, mBTDevices);
                 lvNewDevices.setAdapter(mDeviceListAdapter);
@@ -436,7 +465,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
     public void startBTConnection(BluetoothDevice device, UUID uuid) {
         Log.d(TAG,"startBTConnection: Initializing RFCOM Bluetooth Connection.");
 
-        mBluetoothConnection.startClient(device, uuid);
+        mBluetoothConnection[0].startClient(device, uuid);
 
     }
 
@@ -518,10 +547,82 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
     @Override
     public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
         //first cancel discovery because its very memory intensive.
-        mBluetoothAdapter.cancelDiscovery();
+        if (colors[i]) {
+            view.setBackgroundColor(Color.WHITE);
+            colors[i] = false;
+        }
+        else {
+            view.setBackgroundColor(Color.GREEN);
+            colors[i] = true;
+        }
+        //lvNewDevices.setTextColor( Color.BLACK/*or whatever RGB suites good contrast*/);
+//        mBluetoothAdapter.cancelDiscovery();
+//
+//        if (mBluetoothConnection[0] != null)
+//            mBluetoothConnection[0].cancel();
+//
+//        Log.d(TAG, "onItemClick: You Clicked on a device.");
+//        String deviceName = mBTDevices.get(i).getName();
+//        String deviceAddress = mBTDevices.get(i).getAddress();
+//
+//        Log.d(TAG, "onItemClick: deviceName = " + deviceName);
+//        Log.d(TAG, "onItemClick: deviceAddress = " + deviceAddress);
+//
+//        //create the bond.
+//        //NOTE: Requires API 17+? I think this is JellyBean
+//        if(Build.VERSION.SDK_INT > Build.VERSION_CODES.JELLY_BEAN_MR2){
+//            Log.d(TAG, "Trying to pair with " + deviceName);
+//            mBTDevices.get(i).createBond();
+//
+//            mBTDevice = mBTDevices.get(i);
+//            mBluetoothConnection[0] = new BluetoothConnectionService(MainPage.this);
+//            startConnection();
+//        }
+    }
 
-        if (mBluetoothConnection != null)
-            mBluetoothConnection.cancel();
+    Handler stopProgressDialog = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            mProgressDialog.dismiss();
+        }
+    };
+
+    Handler startProgressDialog = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            mProgressDialog = ProgressDialog.show(MainPage.this, "Connecting Bluetooth", "Please wait...", true);
+        }
+    };
+
+//    @Override
+//    public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+//        Log.e(TAG, "Item Clicked");
+//        connectDevice(i);
+//    }
+
+    public void connectDevice (int i) {
+        //connectDeviceBluetooth( i );
+        Thread t = new Thread( new Runnable() {
+            @Override
+            public void run() {
+                startProgressDialog.sendEmptyMessage(0);
+                connectDeviceBluetooth(i);
+                stopProgressDialog.sendEmptyMessage(0);
+            }
+        });
+//
+        //mProgressDialog = ProgressDialog.show(MainPage.this, "Connecting Bluetooth", "Please wait...", true);
+        t.start();
+
+
+    }
+
+    public void connectDeviceBluetooth (int i) {
+        //first cancel discovery because its very memory intensive.
+
+        mBluetoothAdapter.cancelDiscovery();
+        if (mBluetoothConnection[0] != null)
+            mBluetoothConnection[0].cancel();
 
         Log.d(TAG, "onItemClick: You Clicked on a device.");
         String deviceName = mBTDevices.get(i).getName();
@@ -537,9 +638,39 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
             mBTDevices.get(i).createBond();
 
             mBTDevice = mBTDevices.get(i);
-            mBluetoothConnection = new BluetoothConnectionService(MainPage.this);
+            mBluetoothConnection[0] = new BluetoothConnectionService(MainPage.this);
             startConnection();
         }
+    }
+
+    public void connectBondedDeviceBluetooth (int i) {
+        //first cancel discovery because its very memory intensive.
+
+        mBluetoothAdapter.cancelDiscovery();
+        if (mBluetoothConnection[0] != null)
+            mBluetoothConnection[0].cancel();
+
+        Log.d(TAG, "onItemClick: You Clicked on a device.");
+        String deviceName = mBondedDevices.get(i).getName();
+        String deviceAddress = mBondedDevices.get(i).getAddress();
+
+        Log.d(TAG, "onItemClick: deviceName = " + deviceName);
+        Log.d(TAG, "onItemClick: deviceAddress = " + deviceAddress);
+
+        //create the bond.
+        //NOTE: Requires API 17+? I think this is JellyBean
+        if(Build.VERSION.SDK_INT > Build.VERSION_CODES.JELLY_BEAN_MR2){
+            Log.d(TAG, "Trying to pair with " + deviceName);
+            mBTDevices.get(i).createBond();
+
+            mBTDevice = mBTDevices.get(i);
+            mBluetoothConnection[0] = new BluetoothConnectionService(MainPage.this);
+            startConnection();
+        }
+    }
+
+    public void requestOneWitness (View view) {
+
     }
 
     public void connectListEach () {
@@ -563,7 +694,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                 device.createBond();
 
                 mBTDevice = device;
-                mBluetoothConnection = new BluetoothConnectionService(MainPage.this);
+                mBluetoothConnection[0] = new BluetoothConnectionService(MainPage.this);
 
             }
             Log.d(TAG, "STARTING startConnection...");
@@ -571,7 +702,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
             Log.d(TAG, "ENDING startConnection...");
 
             while (true) {
-                if (mBluetoothConnection.unlock) break;
+                if (mBluetoothConnection[0].unlock) break;
             }
 
 
@@ -579,8 +710,8 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
             requestPoL(null);
             Log.d(TAG, "ENDING requestPoL...");
 
-            if (mBluetoothConnection != null)
-                mBluetoothConnection.cancel();
+            if (mBluetoothConnection[0] != null)
+                mBluetoothConnection[0].cancel();
 
 
         }
@@ -592,12 +723,12 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         Log.d(TAG, "Requesting Proof-of-Location...");
         t.clearComposingText();
         if (mBTDevice == null) return;
-        Log.e(TAG, "Compatibility: " + mBluetoothConnection.isIncompatibleDevice + " - Device: " + mBTDevice.getName());
-        if (!mBluetoothConnection.isIncompatibleDevice) {
+        Log.d(TAG, "Compatibility: " + mBluetoothConnection[0].isIncompatibleDevice + " - Device: " + mBTDevice.getName());
+        if (!mBluetoothConnection[0].isIncompatibleDevice) {
             if (!currentLocation.equals("Unavailable")) {
                 String reqPOL = "POL request: " + currentLocation;
                 byte[] bytes = reqPOL.getBytes(Charset.defaultCharset());
-                mBluetoothConnection.write(bytes);
+                mBluetoothConnection[0].write(bytes);
 
                 new Thread( new Runnable() {
                     @Override
@@ -636,12 +767,12 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         Log.d(TAG, "Sending and requesting Public Key...");
         //t.clearComposingText();
         if (mBTDevice == null) return;
-        Log.e(TAG, "Compatibility: " + mBluetoothConnection.isIncompatibleDevice + " - Device: " + mBTDevice.getName());
-        if (!mBluetoothConnection.isIncompatibleDevice) {
+        Log.d(TAG, "Compatibility: " + mBluetoothConnection[0].isIncompatibleDevice + " - Device: " + mBTDevice.getName());
+        if (!mBluetoothConnection[0].isIncompatibleDevice) {
             if (true) {
                 String reqPOL = "My Public Key is: " + myPublicKey;
                 byte[] bytes = reqPOL.getBytes(Charset.defaultCharset());
-                mBluetoothConnection.write(bytes);
+                mBluetoothConnection[0].write(bytes);
 
                 new Thread( new Runnable() {
                     @Override
@@ -678,6 +809,31 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         }
     }
 
+    public String sendRequestPublicKeyMultiple (View view, String temp) {
+        Log.d(TAG, "Sending and requesting Public Key...");
+        //t.clearComposingText();
+        if (mBTDevice == null) return "";
+        Log.d(TAG, "Compatibility: " + mBluetoothConnection[0].isIncompatibleDevice + " - Device: " + mBTDevice.getName());
+        if (!mBluetoothConnection[0].isIncompatibleDevice) {
+            if (true) {
+                String reqPOL = "My Public Key is: " + myPublicKey;
+                byte[] bytes = reqPOL.getBytes(Charset.defaultCharset());
+                mBluetoothConnection[0].write(bytes);
+
+                return temp;
+
+                //resultDisplay.setText("Success!");
+            }
+            else ;//resultDisplay.setText("Failed! Location unavailable...");
+        } else {
+            Log.d(TAG, "Device "
+
+                    + mBTDevice + " is incompatible... Can't write here!");
+        }
+
+        return "";
+    }
+
 
 
 
@@ -690,8 +846,8 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
         //t.clearComposingText();
         if (mBTDevice == null) return;
-        Log.e(TAG, "Compatibility: " + mBluetoothConnection.isIncompatibleDevice + " - Device: " + mBTDevice.getName());
-        if (!mBluetoothConnection.isIncompatibleDevice) {
+        Log.d(TAG, "Compatibility: " + mBluetoothConnection[0].isIncompatibleDevice + " - Device: " + mBTDevice.getName());
+        if (!mBluetoothConnection[0].isIncompatibleDevice) {
             if (!currentLocation.equals("Unavailable")) {
                 String locationmessage = currentLocation;
 
@@ -726,9 +882,9 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
                         //byte [] bytes2 = encrypted.getBytes(Charset.defaultCharset());
 
-                        Log.e(TAG, "r: " + Arrays.toString(r));
-                        Log.e(TAG, "s: " + Arrays.toString(s));
-                        Log.e(TAG, "v: " + Arrays.toString(v));
+                        //Log.e(TAG, "r: " + Arrays.toString(r));
+                        //Log.e(TAG, "s: " + Arrays.toString(s));
+                        //Log.e(TAG, "v: " + Arrays.toString(v));
 
                         Log.d(TAG, "Encrypted data R: " + "0x" + Keys.getAddress(new BigInteger(1, signature.getR())));
                         Log.d(TAG, "Encrypted data S: " + "0x" + Keys.getAddress(new BigInteger(1, signature.getS())));
@@ -736,7 +892,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                         Log.d(TAG, "Finished signing...");
 
 
-                        Log.e(TAG, Arrays.toString( bytes ));
+                        Log.d(TAG, Arrays.toString( bytes ));
                         // transfer this to BluetoothConnectionService
                         String pubKey = null;
                         try {
@@ -746,9 +902,9 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                         }
                         String signerAddress = "0x" + Keys.getAddress(pubKey);
 
-                        Log.e(TAG, "My Publickey: " + myPublicKey + "\nPublickey: " + signerAddress);
+                        Log.d(TAG, "My Publickey: " + myPublicKey + "\nPublickey: " + signerAddress);
 
-                        mBluetoothConnection.write(bytes2);
+                        mBluetoothConnection[0].write(bytes2);
 
 
                         try {
@@ -795,91 +951,158 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
     }
 
     public String getCurrentMessage() {
-        return mBluetoothConnection.currentMessage;
+        return mBluetoothConnection[0].currentMessage;
     }
 
-    public void dothis(View view) {
-        //CHECKSTYLE:OFF
-        String signature = "0x2c6401216c9031b9a6fb8cbfccab4fcec6c951cdf40e2320108d1856eb532250576865fbcd452bcdc4c57321b619ed7a9cfd38bd973c3e1e0243ac2777fe9d5b1b";
-//        String signature = "0x0993fdb1eee17965ce2ad068292f0d99280a0539686e47f7ce3358c6a6c52f8b8e3914f43a25c446";
-//        0x3bc843a917d6c19c487c1d0c660cdd61389ce2a7651ee3171bcc212ffddca164
-//        0x0993fdb1eee17965ce2ad068292f0d99280a0539
-        //CHECKSTYLE:ON
-        String address = "0x31b26e43651e9371c88af3d36c14cfd938baf4fd";
-        String message = "v0G9u7huK4mJb2K1";
+//    public void dothis(View view) {
+//        //CHECKSTYLE:OFF
+//        String signature = "0x2c6401216c9031b9a6fb8cbfccab4fcec6c951cdf40e2320108d1856eb532250576865fbcd452bcdc4c57321b619ed7a9cfd38bd973c3e1e0243ac2777fe9d5b1b";
+////        String signature = "0x0993fdb1eee17965ce2ad068292f0d99280a0539686e47f7ce3358c6a6c52f8b8e3914f43a25c446";
+////        0x3bc843a917d6c19c487c1d0c660cdd61389ce2a7651ee3171bcc212ffddca164
+////        0x0993fdb1eee17965ce2ad068292f0d99280a0539
+//        //CHECKSTYLE:ON
+//        String address = "0x31b26e43651e9371c88af3d36c14cfd938baf4fd";
+//        String message = "v0G9u7huK4mJb2K1";
+//
+//        String prefix = PERSONAL_MESSAGE_PREFIX + message.length();
+//        byte[] msgHash = Hash.sha3( (prefix + message).getBytes() );
+//
+//        byte[] signatureBytes = Numeric.hexStringToByteArray( signature );
+//        byte v = signatureBytes[64];
+//        if (v < 27) {
+//            v += 27;
+//        }
+//
+//        Sign.SignatureData sd = new Sign.SignatureData(
+//                v,
+//                (byte[]) Arrays.copyOfRange( signatureBytes, 0, 32 ),
+//                (byte[]) Arrays.copyOfRange( signatureBytes, 32, 64 ) );
+//
+//        String addressRecovered = null;
+//        boolean match = false;
+//
+//        // Iterate for each possible key to recover
+//        for (int i = 0; i < 4; i++) {
+//            BigInteger publicKey = Sign.recoverFromSignature(
+//                    (byte) i,
+//                    new ECDSASignature( new BigInteger( 1, sd.getR() ), new BigInteger( 1, sd.getS() ) ),
+//                    msgHash );
+//
+//            if (publicKey != null) {
+//                addressRecovered = "0x" + Keys.getAddress( publicKey );
+//
+//                if (addressRecovered.equals( address )) {
+//                    Log.e(TAG, "My Publickey: " + address + "\nPublickey: " + addressRecovered);
+//                    match = true;
+//                    break;
+//                }
+//            }
+//        }
+//    }
+//
+//    public String encryptMessage (String plaintext) throws InvalidKeyException, NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException, BadPaddingException, IllegalBlockSizeException {
+//
+//        new Thread( new Runnable() {
+//            @Override
+//            public void run() {
+//                Log.d(TAG, "Plaintext message: " + plaintext);
+//
+//                // generate a new public/private key pair to test with (note. you should only do this once and keep them!)
+//                KeyPair kp = getKeyPair();
+//                Log.d(TAG, "HERE");
+//                PublicKey publicKey = kp.getPublic();
+//                byte[] publicKeyBytes = publicKey.getEncoded();
+//                String publicKeyBytesBase64 = new String(Base64.encode(publicKeyBytes, Base64.DEFAULT));
+//
+//                PrivateKey privateKey = kp.getPrivate();
+//                byte[] privateKeyBytes = privateKey.getEncoded();
+//                String privateKeyBytesBase64 = new String(Base64.encode(privateKeyBytes, Base64.DEFAULT));
+//
+//                // test encryption
+//                String encrypted = encryptRSAToString(plaintext, publicKeyBytesBase64);
+//                String encrypted2 = encryptRSAToString(plaintext, publicKeyBytesBase64);
+//                Log.d(TAG, "Encrypted message 1: " + encrypted);
+//                Log.d(TAG, "Encrypted message 2: " + encrypted2);
+//
+//                // test decryption
+//                String decrypted = decryptRSAToString(encrypted, privateKeyBytesBase64);
+//                String decrypted2 = decryptRSAToString(encrypted2, privateKeyBytesBase64);
+//                Log.d(TAG, "Decrypted message 1: " + decrypted);
+//                Log.d(TAG, "Decrypted message 2: " + decrypted2);
+//
+//            }
+//        }).start();
+//
+//
+//
+//        return "";
+//    }
 
-        String prefix = PERSONAL_MESSAGE_PREFIX + message.length();
-        byte[] msgHash = Hash.sha3( (prefix + message).getBytes() );
-
-        byte[] signatureBytes = Numeric.hexStringToByteArray( signature );
-        byte v = signatureBytes[64];
-        if (v < 27) {
-            v += 27;
-        }
-
-        Sign.SignatureData sd = new Sign.SignatureData(
-                v,
-                (byte[]) Arrays.copyOfRange( signatureBytes, 0, 32 ),
-                (byte[]) Arrays.copyOfRange( signatureBytes, 32, 64 ) );
-
-        String addressRecovered = null;
-        boolean match = false;
-
-        // Iterate for each possible key to recover
-        for (int i = 0; i < 4; i++) {
-            BigInteger publicKey = Sign.recoverFromSignature(
-                    (byte) i,
-                    new ECDSASignature( new BigInteger( 1, sd.getR() ), new BigInteger( 1, sd.getS() ) ),
-                    msgHash );
-
-            if (publicKey != null) {
-                addressRecovered = "0x" + Keys.getAddress( publicKey );
-
-                if (addressRecovered.equals( address )) {
-                    Log.e(TAG, "My Publickey: " + address + "\nPublickey: " + addressRecovered);
-                    match = true;
-                    break;
-                }
-            }
-        }
-    }
-
-    public String encryptMessage (String plaintext) throws InvalidKeyException, NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException, BadPaddingException, IllegalBlockSizeException {
-
-        new Thread( new Runnable() {
+    public void dothis (View view) {
+        Thread tProcedure = new Thread( new Runnable() {
             @Override
             public void run() {
-                Log.d(TAG, "Plaintext message: " + plaintext);
+                int i = 0;
+                int numOfProofs = 0;
+                for (boolean isClicked : colors){
+                    if (isClicked) numOfProofs++;
+                    i++;
+                }
 
-                // generate a new public/private key pair to test with (note. you should only do this once and keep them!)
-                KeyPair kp = getKeyPair();
-                Log.d(TAG, "HERE");
-                PublicKey publicKey = kp.getPublic();
-                byte[] publicKeyBytes = publicKey.getEncoded();
-                String publicKeyBytesBase64 = new String(Base64.encode(publicKeyBytes, Base64.DEFAULT));
+                int finalNumOfProofs = numOfProofs;
+                Thread tMakeTransaction = new Thread( new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.d(TAG, "Making transaction...");
+                        startProgressDialog.sendEmptyMessage(0);
+                        transferToContract(null, finalNumOfProofs );
+                        stopProgressDialog.sendEmptyMessage(0);
+                    }
+                });
+                if (finalNumOfProofs > 0) {
+                    tMakeTransaction.start();
+                    try {
+                        tMakeTransaction.join();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
 
-                PrivateKey privateKey = kp.getPrivate();
-                byte[] privateKeyBytes = privateKey.getEncoded();
-                String privateKeyBytesBase64 = new String(Base64.encode(privateKeyBytes, Base64.DEFAULT));
+                i = 0;
 
-                // test encryption
-                String encrypted = encryptRSAToString(plaintext, publicKeyBytesBase64);
-                String encrypted2 = encryptRSAToString(plaintext, publicKeyBytesBase64);
-                Log.d(TAG, "Encrypted message 1: " + encrypted);
-                Log.d(TAG, "Encrypted message 2: " + encrypted2);
+                for (boolean isClicked : colors){
+                    if (isClicked) {
+                        Log.e(TAG, "Connecting to device: " + mBondedDevices.get(i).getName());
+                        connectBondedDeviceBluetooth(i);
 
-                // test decryption
-                String decrypted = decryptRSAToString(encrypted, privateKeyBytesBase64);
-                String decrypted2 = decryptRSAToString(encrypted2, privateKeyBytesBase64);
-                Log.d(TAG, "Decrypted message 1: " + decrypted);
-                Log.d(TAG, "Decrypted message 2: " + decrypted2);
+                        Log.d(TAG, "Exchanging Keys...");
+                        Thread tExchangeKeys = new Thread( new Runnable() {
+                            @Override
+                            public void run() {
+                                startProgressDialog.sendEmptyMessage(0);
+                                sendRequestPublicKey(null);
+                                stopProgressDialog.sendEmptyMessage(0);
+                            }
+                        });
+
+                        tExchangeKeys.start();
+                        try {
+                            tExchangeKeys.join();
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+
+
+
+                    }
+                    i++;
+                }
+
 
             }
-        }).start();
+        } );
+        tProcedure.start();
 
-
-
-        return "";
     }
 
 
@@ -942,12 +1165,13 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
 
 
-    public void transferToContract(View view) {
+    public void transferToContract(View view, int numOfProofs) {
         destination = spinner.getSelectedItem().toString();
-        Log.d(TAG, "HEY: " + destination);
         if (destination.equals("Select Destination")) return;
-        Log.d( TAG, "Amount: " + BigInteger.valueOf(Integer.parseInt(textAmountToSend.getText().toString())) );
-        new Thread( new Runnable() {
+        Log.d(TAG, "Application Transaction for Address: " + destination);
+        Log.d(TAG, "Amount: " + BigInteger.valueOf(Integer.parseInt(textAmountToSend.getText().toString())) );
+        Log.d(TAG, "Number of Proofs: " + numOfProofs);
+        Thread t = new Thread( new Runnable() {
             String destination = spinner.getSelectedItem().toString();
 
             BigInteger amount = BigInteger.valueOf(Integer.parseInt(textAmountToSend.getText().toString()));
@@ -956,7 +1180,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                 BigInteger etherUnit = new BigInteger( "1000000000000000" );
                 BigInteger amountEther = amount.multiply(etherUnit);
 
-                BigInteger numProofs = new BigInteger( "1" );
+                BigInteger numProofs = new BigInteger( String.valueOf( numOfProofs ) );
                 Future<TransactionReceipt> isTransferred = transaction.transferToContract(destination, amount, numProofs, amountEther).sendAsync();
                 TransactionReceipt transactionReceipt  = null;
                 try {
@@ -972,7 +1196,13 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                 }
 
             }
-        }).start();
+        });
+        t.start();
+        try {
+            t.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     public void confirmTransaction(View view) {

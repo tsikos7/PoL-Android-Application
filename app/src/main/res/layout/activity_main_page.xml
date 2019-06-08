@@ -30,7 +30,7 @@
         android:layout_marginTop="7dp"
         android:layout_marginEnd="70dp"
         android:onClick="dothis"
-        android:text="Encr-Decr" />
+        android:text="Do this" />
 
     <!--<Button-->
         <!--android:id="@+id/Scanning"-->
@@ -76,7 +76,7 @@
         android:layout_marginStart="8dp"
         android:layout_marginTop="2dp"
         android:layout_toEndOf="@+id/destAddresses"
-        android:onClick="transferToContract"
+        android:onClick="dothis"
         android:text="Send to Contract" />
 
 
