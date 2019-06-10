@@ -2,12 +2,31 @@
     <string name="app_name">Project Odyssey</string>
     <string name="edit_message">Enter a message</string>
     <string name="button_send">Send</string>
-    <string-array name="addresses">
+    <string-array name="myaddresses">
+        <item>0x3E877f2f819E1feec88336c4d75966637e21C6cC</item>
         <item>0x8810b36A2Cde364549D814C6023B24Ca8Bc37bF1</item>
+        <item>0x3A3f446e622130EaccA9FdC1A743cE66CDae025d</item>
         <item>0x4C74B73c928E13016609d1b6788Ad7eb174ab6A2</item>
-        <item>0xB88164B084213F0b91dbe55906f83840F9D28C66</item>
+        <item>0x3C0aD1e7B0a24174241b72EFdd415e13A8177402</item>
         <item>0xFF9b26afe3D7D055eAb2dADB334f92Effc834a2b</item>
-        <item>0xF69870659eA07F920939DedfB6A28cD721Da8F29</item>
+        <item>0x015Bbab8756B37d8D14e7ff7f915650b37161f39</item>
+    </string-array>
+    <string-array name="privateKeys">
+        <item>EF41EE70F8F4724A5CFAC21E64E572E5BDD25102B96325B4F12009D52167121B</item>
+        <item>A7A4CA66698B62771660FE5E41529D1B739AEF70688A02C337B031213F9C648C</item>
+        <item>8A6A1F416B7A6756BC89021AED2239F6F1EC3B165E81317382E256BA199A2F5D</item>
+        <item>215479099b71e496b9decde2bec8f626ace8151cec6ed84c01db927894ec4b14</item>
+        <item>368512A07C38EDA260BA631315D92EB93D271477607D5C4677D345054F85506E</item>
+        <item>eb379b12c4e7bfee203964f1986b096100bbf4116ca257e9c27c0dc3195fceef</item>
+        <item>629054BB24F430E96C6BFFC58F186371695BC3BFC695E76CEF54DAFCA460BC0C</item>
+    </string-array>
+    <string-array name="destaddresses">
+        <item>0x015Bbab8756B37d8D14e7ff7f915650b37161f39</item>
+        <item>0xFF9b26afe3D7D055eAb2dADB334f92Effc834a2b</item>
+        <item>0x3C0aD1e7B0a24174241b72EFdd415e13A8177402</item>
+        <item>0x4C74B73c928E13016609d1b6788Ad7eb174ab6A2</item>
+        <item>0x3A3f446e622130EaccA9FdC1A743cE66CDae025d</item>
+        <item>0x8810b36A2Cde364549D814C6023B24Ca8Bc37bF1</item>
         <item>0x3E877f2f819E1feec88336c4d75966637e21C6cC</item>
     </string-array>
 </resources>

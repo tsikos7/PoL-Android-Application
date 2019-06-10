@@ -8,29 +8,29 @@
 
     <Button
         android:id="@+id/RequestPoL"
-        android:layout_width="wrap_content"
+        android:layout_width="178dp"
         android:layout_height="50dp"
         android:layout_alignParentStart="true"
         android:layout_alignParentTop="true"
         android:layout_alignParentEnd="true"
-        android:layout_marginStart="70dp"
-        android:layout_marginTop="13dp"
-        android:layout_marginEnd="70dp"
+        android:layout_marginStart="18dp"
+        android:layout_marginTop="17dp"
+        android:layout_marginEnd="215dp"
         android:onClick="requestPoL"
-        android:text="Request Proof-of-Location" />
+        android:text="Activate Bluetooth" />
 
     <Button
         android:id="@+id/Scanning"
-        android:layout_width="wrap_content"
+        android:layout_width="180dp"
         android:layout_height="50dp"
-        android:layout_below="@+id/RequestPoL"
-        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
         android:layout_alignParentEnd="true"
-        android:layout_marginStart="70dp"
-        android:layout_marginTop="7dp"
-        android:layout_marginEnd="70dp"
+        android:layout_marginStart="-197dp"
+        android:layout_marginTop="17dp"
+        android:layout_marginEnd="21dp"
+        android:layout_toEndOf="@+id/RequestPoL"
         android:onClick="dothis"
-        android:text="Do this" />
+        android:text="Toggle Scanning" />
 
     <!--<Button-->
         <!--android:id="@+id/Scanning"-->
@@ -68,70 +68,58 @@
         android:text=""
         android:textSize="16sp" />
 
-    <Button
-        android:id="@+id/sendEther"
-        android:layout_width="120dp"
-        android:layout_height="115dp"
-        android:layout_below="@+id/sendPublic"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="2dp"
-        android:layout_toEndOf="@+id/destAddresses"
-        android:onClick="dothis"
-        android:text="Send to Contract" />
-
 
     <EditText
         android:id="@+id/textAmount"
-        android:layout_width="239dp"
+        android:layout_width="240dp"
         android:layout_height="50dp"
         android:layout_below="@+id/destAddresses"
         android:layout_alignParentStart="true"
-        android:layout_marginStart="15dp"
-        android:layout_marginTop="14dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="10dp"
         android:text="1" />
 
-    <Button
-        android:id="@+id/confirmTransaction"
-        android:layout_width="369dp"
+    <Spinner
+        android:id="@+id/myaddresses"
+        android:layout_width="239dp"
         android:layout_height="50dp"
-        android:layout_below="@+id/textAmount"
-        android:layout_marginStart="-241dp"
-        android:layout_marginTop="12dp"
-        android:layout_toEndOf="@+id/destAddresses"
-        android:onClick="confirmTransaction"
-        android:text="Confirm Location" />
+        android:layout_below="@+id/textView"
+        android:layout_alignParentStart="true"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="10dp"
+        android:spinnerMode="dropdown" />
 
     <Spinner
         android:id="@+id/destAddresses"
-        android:layout_width="239dp"
+        android:layout_width="240dp"
         android:layout_height="50dp"
-        android:layout_below="@+id/sendPublic"
+        android:layout_below="@+id/myaddresses"
         android:layout_alignParentStart="true"
-        android:layout_marginStart="17dp"
-        android:layout_marginTop="1dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="10dp"
         android:spinnerMode="dropdown" />
 
     <Button
         android:id="@+id/sendPublic"
-        android:layout_width="183dp"
-        android:layout_height="61dp"
+        android:layout_width="140dp"
+        android:layout_height="110dp"
         android:layout_below="@+id/textView"
-        android:layout_alignParentStart="true"
-        android:layout_marginStart="15dp"
-        android:layout_marginTop="4dp"
-        android:onClick="sendRequestPublicKey"
-        android:text="Send Public" />
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="10dp"
+        android:layout_toEndOf="@+id/destAddresses"
+        android:onClick="applyTransaction"
+        android:text="Apply for Transaction" />
 
     <Button
         android:id="@+id/sendLocation"
-        android:layout_width="183dp"
-        android:layout_height="61dp"
-        android:layout_below="@+id/textView"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="4dp"
-        android:layout_toEndOf="@+id/sendPublic"
-        android:onClick="sendLocation"
-        android:text="Send Location" />
+        android:layout_width="140dp"
+        android:layout_height="50dp"
+        android:layout_below="@+id/sendPublic"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="10dp"
+        android:layout_toEndOf="@+id/myaddresses"
+        android:onClick="confirmPoL"
+        android:text="Confirm" />
 
 
 </RelativeLayout>

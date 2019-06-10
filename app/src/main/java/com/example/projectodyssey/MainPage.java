@@ -46,6 +46,7 @@ import org.web3j.tx.FastRawTransactionManager;
 import org.web3j.tx.TransactionManager;
 import org.web3j.utils.Numeric;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.math.RoundingMode;
@@ -100,37 +101,34 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
     private static final String TAG = "MainPage";
     public static final String PERSONAL_MESSAGE_PREFIX = "\u0019Ethereum Signed Message:\n";
     // BLOCKCHAIN CONTRACT STUFF
-    String contractAddress = "0xd2Af918B0c5e1960F1Ebed8EC8bcb3ca1E62876F";
-    String url = "https://ropsten.infura.io/v3/671362fca54b42b0a7c7f3c3126dc47b";
+    String contractAddress = "0x47B710157f13d499dC15aaC9acC9eaf1e93b8885";
+//    String contractAddress = "0x4C74B73c928E13016609d1b6788Ad7eb174ab6A2";
+//    String contractAddress = "0x3C0aD1e7B0a24174241b72EFdd415e13A8177402";
+    String url = "https://rinkeby.infura.io/v3/671362fca54b42b0a7c7f3c3126dc47b";
 
     Web3j web3j = Web3j.build(new InfuraHttpService(url));
 
     BigInteger gasLimit = BigInteger.valueOf(6700000L);
     BigInteger gasPrice = BigInteger.valueOf(22_000_000_000L);
 
-    Credentials credentials = Credentials.create("8A6A1F416B7A6756BC89021AED2239F6F1EC3B165E81317382E256BA199A2F5D");
-    String myPublicKey = "0x3A3f446e622130EaccA9FdC1A743cE66CDae025d";
+    String[] myPrivateKeys;
+    String myPrivateKey = "629054BB24F430E96C6BFFC58F186371695BC3BFC695E76CEF54DAFCA460BC0C";
+    Credentials credentials = Credentials.create("629054BB24F430E96C6BFFC58F186371695BC3BFC695E76CEF54DAFCA460BC0C");
+//    Credentials credentials = Credentials.create("8A6A1F416B7A6756BC89021AED2239F6F1EC3B165E81317382E256BA199A2F5D");
+//    Credentials credentials = Credentials.create("368512A07C38EDA260BA631315D92EB93D271477607D5C4677D345054F85506E");
+    String myPublicKey = "0x015Bbab8756B37d8D14e7ff7f915650b37161f39";
 
-    private static SecretKeySpec secretKey;
-    private static byte[] key;
-
-    Future<TransactionReceipt> transactionReceipt;
-
-    TransactionManager fastRawTxMgr =new FastRawTransactionManager(web3j, credentials);
-    Greeter greeter;
+    FastRawTransactionManager fastRawTxMgr = new FastRawTransactionManager(web3j, credentials);
     Transaction transaction;
     ProgressDialog mProgressDialog;
 
     // BLUETOOTH STUFF
-    Button btnDebug;
     Button btnRequestPoL;
     Button btnONOFF;
     Button btnStartConnection;
     private TextView t;
-    Button btnSendEther;
-    EditText etSend;
     EditText textAmountToSend;
-    Spinner spinner;
+    Spinner mySpinner, spinner;
     String destination;
     String witnessKey;
     boolean colors[] = new boolean[100];
@@ -151,7 +149,6 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
     public ArrayList<BluetoothDevice> mBondedDevices = new ArrayList<>();
 
     public DeviceListAdapter mDeviceListAdapter;
-    View lastTouchedView;
     ListView lvNewDevices;
 
     @Override
@@ -171,16 +168,53 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         setContentView(R.layout.activity_main_page);
 
         // BLOCKCHAIN CONTRACT STUFF
-        transaction = Transaction.load(contractAddress, web3j, fastRawTxMgr, gasPrice, gasLimit);
 
-        btnSendEther = (Button) findViewById(R.id.sendEther);
+
+
+
         textAmountToSend = (EditText) findViewById(R.id.textAmount);
 
-        spinner = (Spinner) findViewById(R.id.destAddresses);
+        mySpinner = (Spinner) findViewById(R.id.myaddresses);
         ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
-                R.array.addresses, android.R.layout.simple_spinner_item);
+                R.array.myaddresses, android.R.layout.simple_spinner_item);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
+        mySpinner.setAdapter(adapter);
+
+        spinner = (Spinner) findViewById(R.id.destAddresses);
+        ArrayAdapter<CharSequence> adapter2 = ArrayAdapter.createFromResource(this,
+                R.array.destaddresses, android.R.layout.simple_spinner_item);
+        adapter2.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter2);
+
+        mySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            public void onItemSelected(
+                    AdapterView<?> adapterView, View view, int i, long l) {
+                myPrivateKeys = MainPage.this.getResources().getStringArray(R.array.privateKeys);
+
+                myPublicKey = mySpinner.getSelectedItem().toString();
+                myPrivateKey = myPrivateKeys[mySpinner.getSelectedItemPosition()];
+                credentials = Credentials.create(myPrivateKey);
+                fastRawTxMgr = new FastRawTransactionManager(web3j, credentials);
+                transaction = Transaction.load(contractAddress, web3j, fastRawTxMgr, gasPrice, gasLimit);
+                Log.d(TAG, myPublicKey);
+            }
+
+            public void onNothingSelected(
+                    AdapterView<?> adapterView) {
+
+            }
+        });
+        myPrivateKeys = MainPage.this.getResources().getStringArray(R.array.privateKeys);
+
+        myPublicKey = mySpinner.getSelectedItem().toString();
+        myPrivateKey = myPrivateKeys[mySpinner.getSelectedItemPosition()];
+        credentials = Credentials.create(myPrivateKey);
+        fastRawTxMgr = new FastRawTransactionManager(web3j, credentials);
+        transaction = Transaction.load(contractAddress, web3j, fastRawTxMgr, gasPrice, gasLimit);
+
+
+        destination = spinner.getSelectedItem().toString();
+
 
         // BLUETOOTH STUFF
 
@@ -227,6 +261,9 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         lvNewDevices.setOnItemClickListener(MainPage.this);
 
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+
+
+
 
 
         listener = new LocationListener() {
@@ -283,8 +320,11 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         };
 
         activateLocationProvider();
-        String destination = spinner.getSelectedItem().toString();
-        Log.d( TAG, "AAAAAA" + destination );
+
+
+
+
+
         enableBT();
         btnEnableDisable_Discoverable();
 
@@ -580,6 +620,20 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 //        }
     }
 
+    Handler stopProgressDialogTx = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            mProgressDialog.dismiss();
+        }
+    };
+
+    Handler startProgressDialogTx = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            mProgressDialog = ProgressDialog.show(MainPage.this, "Applying for Transaction", "Please wait...", true);
+        }
+    };
+
     Handler stopProgressDialog = new Handler() {
         @Override
         public void handleMessage(Message msg) {
@@ -679,7 +733,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
 
         for (BluetoothDevice device : mBTDevices) {
-            Log.e(TAG, "Device #" + numOfPaired++);
+            Log.d(TAG, "Device #" + numOfPaired++);
             String deviceName = device.getName();
             String deviceAddress = device.getAddress();
 
@@ -741,15 +795,6 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                         String temp = "" + reqPOL + "\n" + getCurrentMessage();
 
                         Log.d(TAG, temp);
-                        runOnUiThread(new Runnable() {
-
-                            @Override
-                            public void run() {
-
-                                t.setText(temp);
-
-                            }
-                        });
 
                     }
                 }).start();
@@ -788,15 +833,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
                         Log.d(TAG, temp);
 
-                        runOnUiThread(new Runnable() {
 
-                            @Override
-                            public void run() {
-
-                                t.setText(temp);
-
-                            }
-                        });
                     }
                 }).start();
                 //resultDisplay.setText("Success!");
@@ -851,10 +888,11 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
             if (!currentLocation.equals("Unavailable")) {
                 String locationmessage = currentLocation;
 
-                new Thread( new Runnable() {
+                Thread tSendLocation = new Thread( new Runnable() {
                     @Override
                     public void run() {
                         Log.d(TAG, "Encrypting Message...");
+                        Log.d(TAG, "With key: " + witnessKey);
                         String encrypted = "PoL Request: " + encryptRSAToString(locationmessage, witnessKey);
                         Log.d(TAG, "Finished encrypting...");
 
@@ -915,18 +953,15 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                         String temp = "" + encrypted + "\n" + getCurrentMessage();
 
                         Log.d(TAG, temp);
-                        runOnUiThread(new Runnable() {
 
-                            @Override
-                            public void run() {
-
-                                t.setText(temp);
-
-                            }
-                        });
                     }
-                }).start();
-                //resultDisplay.setText("Success!");
+                });
+                tSendLocation.start();
+                try {
+                    tSendLocation.join();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
             else ;//resultDisplay.setText("Failed! Location unavailable...");
         } else {
@@ -1046,10 +1081,12 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                 int numOfProofs = 0;
                 for (boolean isClicked : colors){
                     if (isClicked) numOfProofs++;
+
                     i++;
                 }
 
                 int finalNumOfProofs = numOfProofs;
+
                 Thread tMakeTransaction = new Thread( new Runnable() {
                     @Override
                     public void run() {
@@ -1060,6 +1097,8 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                     }
                 });
                 if (finalNumOfProofs > 0) {
+                    fastRawTxMgr.setNonce( BigInteger.valueOf( -1 ) );
+
                     tMakeTransaction.start();
                     try {
                         tMakeTransaction.join();
@@ -1071,29 +1110,76 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                 i = 0;
 
                 for (boolean isClicked : colors){
-                    if (isClicked) {
-                        Log.e(TAG, "Connecting to device: " + mBondedDevices.get(i).getName());
-                        connectBondedDeviceBluetooth(i);
+                    int finalI = i;
+                    Thread forEachDevice = new Thread( new Runnable() {
+                        @Override
+                        public void run() {
+                            if (isClicked) {
+                                Log.e(TAG, "[Started]Connecting to device: " + mBondedDevices.get( finalI ).getName());
+                                connectBondedDeviceBluetooth( finalI );
 
-                        Log.d(TAG, "Exchanging Keys...");
-                        Thread tExchangeKeys = new Thread( new Runnable() {
-                            @Override
-                            public void run() {
-                                startProgressDialog.sendEmptyMessage(0);
-                                sendRequestPublicKey(null);
-                                stopProgressDialog.sendEmptyMessage(0);
+
+                                Thread tExchangeKeys = new Thread( new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Log.e(TAG, "[SOS]Exchanging Keys...");
+                                        startProgressDialog.sendEmptyMessage(0);
+                                        sendRequestPublicKey(null);
+                                        stopProgressDialog.sendEmptyMessage(0);
+                                        Log.e(TAG, "[SOS]Finished Exchanging Keys...");
+                                    }
+                                });
+
+                                tExchangeKeys.start();
+                                try {
+                                    tExchangeKeys.join();
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                }
+
+
+
+                                Thread tSendLocation = new Thread( new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Log.e(TAG, "[SOS]Sending Location...");
+                                        startProgressDialog.sendEmptyMessage(0);
+                                        boolean sentinel = true;
+                                        String cur = getCurrentMessage();
+                                        Log.d(TAG, cur);
+                                        while (sentinel) {
+                                            try {
+                                                Thread.sleep(3000);
+                                            } catch (InterruptedException e) {
+                                                e.printStackTrace();
+                                            }
+                                            if (!cur.equals(getCurrentMessage())) sentinel = false;
+                                        }
+                                        witnessKey = getCurrentMessage();
+                                        Log.d(TAG, witnessKey);
+                                        sendLocation(null);
+                                        stopProgressDialog.sendEmptyMessage(0);
+                                        Log.e(TAG, "[SOS]Finished Sending Location...");
+                                    }
+                                });
+
+                                tSendLocation.start();
+                                try {
+                                    tSendLocation.join();
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                }
+
+                                Log.e(TAG, "[Finished]Device " + mBondedDevices.get( finalI ).getName() + "just finished");
+
                             }
-                        });
-
-                        tExchangeKeys.start();
-                        try {
-                            tExchangeKeys.join();
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
                         }
-
-
-
+                    } );
+                    forEachDevice.start();
+                    try {
+                        forEachDevice.join();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
                     }
                     i++;
                 }
@@ -1120,6 +1206,8 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
     }
 
     public static String encryptRSAToString(String clearText, String publicKey) {
+        Log.d(TAG, "ClearText: " + clearText);
+        Log.d(TAG, "publicKey: " + publicKey);
         String encryptedBase64 = "";
         try {
             KeyFactory keyFac = KeyFactory.getInstance("RSA");
@@ -1166,7 +1254,10 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
 
     public void transferToContract(View view, int numOfProofs) {
+        myPublicKey = mySpinner.getSelectedItem().toString();
+        myPrivateKey = myPrivateKeys[mySpinner.getSelectedItemPosition()];
         destination = spinner.getSelectedItem().toString();
+
         if (destination.equals("Select Destination")) return;
         Log.d(TAG, "Application Transaction for Address: " + destination);
         Log.d(TAG, "Amount: " + BigInteger.valueOf(Integer.parseInt(textAmountToSend.getText().toString())) );
@@ -1181,18 +1272,21 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                 BigInteger amountEther = amount.multiply(etherUnit);
 
                 BigInteger numProofs = new BigInteger( String.valueOf( numOfProofs ) );
-                Future<TransactionReceipt> isTransferred = transaction.transferToContract(destination, amount, numProofs, amountEther).sendAsync();
                 TransactionReceipt transactionReceipt  = null;
                 try {
-                    transactionReceipt = isTransferred.get();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                } catch (ExecutionException e) {
+                    transactionReceipt = transaction.transferToContract(destination, amount, numProofs, amountEther).send();
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
+
                 if (transactionReceipt != null) {
                     Log.d(TAG, "Amount " + amount + " transferred to contract successfully");
                     Log.d(TAG, "Gas used: " + transactionReceipt.getGasUsed());
+                    try {
+                        Thread.sleep(4000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
                 }
 
             }
@@ -1228,4 +1322,133 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         }).start();
     }
 
+
+
+    public void applyTransaction(View view) {
+        Thread tProcedure = new Thread( new Runnable() {
+            @Override
+            public void run() {
+                int i = 0;
+                int numOfProofs = 0;
+                for (boolean isClicked : colors){
+                    if (isClicked) numOfProofs++;
+
+                    i++;
+                }
+
+                int finalNumOfProofs = numOfProofs;
+
+                Thread tMakeTransaction = new Thread( new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.d(TAG, "Making transaction...");
+                        startProgressDialogTx.sendEmptyMessage(0);
+                        transferToContract(null, finalNumOfProofs );
+                        stopProgressDialogTx.sendEmptyMessage(0);
+                    }
+                });
+                if (finalNumOfProofs > 0) {
+                    fastRawTxMgr.setNonce( BigInteger.valueOf( -1 ) );
+
+                    tMakeTransaction.start();
+                    try {
+                        tMakeTransaction.join();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+            }
+        } );
+        tProcedure.start();
+    }
+
+    public void confirmPoL(View view) {
+        Thread tProcedure = new Thread( new Runnable() {
+            @Override
+            public void run() {
+                int i = 0;
+
+
+                for (boolean isClicked : colors){
+                    int finalI = i;
+                    Thread forEachDevice = new Thread( new Runnable() {
+                        @Override
+                        public void run() {
+                            if (isClicked) {
+                                Log.e(TAG, "[Started]Connecting to device: " + mBondedDevices.get( finalI ).getName());
+                                connectBondedDeviceBluetooth( finalI );
+
+
+                                Thread tExchangeKeys = new Thread( new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Log.e(TAG, "[SOS]Exchanging Keys...");
+                                        startProgressDialog.sendEmptyMessage(0);
+                                        sendRequestPublicKey(null);
+                                        stopProgressDialog.sendEmptyMessage(0);
+                                        Log.e(TAG, "[SOS]Finished Exchanging Keys...");
+                                    }
+                                });
+
+                                tExchangeKeys.start();
+                                try {
+                                    tExchangeKeys.join();
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                }
+
+
+
+                                Thread tSendLocation = new Thread( new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Log.e(TAG, "[SOS]Sending Location...");
+                                        startProgressDialog.sendEmptyMessage(0);
+                                        boolean sentinel = true;
+                                        String cur = getCurrentMessage();
+                                        Log.d(TAG, cur);
+                                        while (sentinel) {
+                                            try {
+                                                Thread.sleep(3000);
+                                            } catch (InterruptedException e) {
+                                                e.printStackTrace();
+                                            }
+                                            if (!cur.equals(getCurrentMessage())) sentinel = false;
+                                        }
+                                        witnessKey = getCurrentMessage();
+                                        Log.d(TAG, witnessKey);
+                                        sendLocation(null);
+                                        stopProgressDialog.sendEmptyMessage(0);
+                                        Log.e(TAG, "[SOS]Finished Sending Location...");
+                                    }
+                                });
+
+                                tSendLocation.start();
+                                try {
+                                    tSendLocation.join();
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                }
+
+                                Log.e(TAG, "[Finished]Device " + mBondedDevices.get( finalI ).getName() + "just finished");
+
+                            }
+                        }
+                    } );
+                    forEachDevice.start();
+                    try {
+                        forEachDevice.join();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    i++;
+                }
+
+
+            }
+        } );
+        tProcedure.start();
+
+    }
 }
