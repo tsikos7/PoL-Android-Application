@@ -56,7 +56,7 @@ public class BluetoothConnectionService {
     private final BluetoothAdapter mBluetoothAdapter;
     Context mContext;
 
-    String contractAddress = "0x47B710157f13d499dC15aaC9acC9eaf1e93b8885";
+    String contractAddress = "0x2a68c1D388dd59644957970E8Fb6d25d6751fCA4";
 //    String contractAddress = "0x4C74B73c928E13016609d1b6788Ad7eb174ab6A2";
 //    String contractAddress = "0x3C0aD1e7B0a24174241b72EFdd415e13A8177402";
     String url = "https://rinkeby.infura.io/v3/671362fca54b42b0a7c7f3c3126dc47b";
@@ -65,11 +65,11 @@ public class BluetoothConnectionService {
     BigInteger gasLimit = BigInteger.valueOf(6700000L);
     BigInteger gasPrice = BigInteger.valueOf(22_000_000_000L);
 
-    Credentials credentials = Credentials.create("629054BB24F430E96C6BFFC58F186371695BC3BFC695E76CEF54DAFCA460BC0C");
+    Credentials credentials = Credentials.create("EF41EE70F8F4724A5CFAC21E64E572E5BDD25102B96325B4F12009D52167121B");
 //    Credentials credentials = Credentials.create("215479099B71E496B9DECDE2BEC8F626ACE8151CEC6ED84C01DB927894EC4B14");
 //    Credentials credentials = Credentials.create("368512A07C38EDA260BA631315D92EB93D271477607D5C4677D345054F85506E");
 
-    String myPublicKey = "0x015Bbab8756B37d8D14e7ff7f915650b37161f39";
+    String myPublicKey = "0x3E877f2f819E1feec88336c4d75966637e21C6cC";
     TransactionManager fastRawTxMgr;
     Transaction transaction;
 

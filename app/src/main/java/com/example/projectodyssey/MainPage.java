@@ -1,6 +1,7 @@
 package com.example.projectodyssey;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
@@ -100,32 +101,27 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
     private static final String TAG = "MainPage";
     public static final String PERSONAL_MESSAGE_PREFIX = "\u0019Ethereum Signed Message:\n";
+    private static final UUID MY_UUID_INSECURE = UUID.fromString("8ce255c0-200a-11e0-ac64-0800200c9a66");
     // BLOCKCHAIN CONTRACT STUFF
-    String contractAddress = "0x47B710157f13d499dC15aaC9acC9eaf1e93b8885";
-//    String contractAddress = "0x4C74B73c928E13016609d1b6788Ad7eb174ab6A2";
-//    String contractAddress = "0x3C0aD1e7B0a24174241b72EFdd415e13A8177402";
+    String contractAddress = "0x2a68c1D388dd59644957970E8Fb6d25d6751fCA4";
     String url = "https://rinkeby.infura.io/v3/671362fca54b42b0a7c7f3c3126dc47b";
-
     Web3j web3j = Web3j.build(new InfuraHttpService(url));
 
     BigInteger gasLimit = BigInteger.valueOf(6700000L);
     BigInteger gasPrice = BigInteger.valueOf(22_000_000_000L);
 
     String[] myPrivateKeys;
-    String myPrivateKey = "629054BB24F430E96C6BFFC58F186371695BC3BFC695E76CEF54DAFCA460BC0C";
-    Credentials credentials = Credentials.create("629054BB24F430E96C6BFFC58F186371695BC3BFC695E76CEF54DAFCA460BC0C");
-//    Credentials credentials = Credentials.create("8A6A1F416B7A6756BC89021AED2239F6F1EC3B165E81317382E256BA199A2F5D");
-//    Credentials credentials = Credentials.create("368512A07C38EDA260BA631315D92EB93D271477607D5C4677D345054F85506E");
-    String myPublicKey = "0x015Bbab8756B37d8D14e7ff7f915650b37161f39";
+    String myPrivateKey = "EF41EE70F8F4724A5CFAC21E64E572E5BDD25102B96325B4F12009D52167121B";
+    Credentials credentials = Credentials.create("EF41EE70F8F4724A5CFAC21E64E572E5BDD25102B96325B4F12009D52167121B");
+    String myPublicKey = "0x3E877f2f819E1feec88336c4d75966637e21C6cC";
 
     FastRawTransactionManager fastRawTxMgr = new FastRawTransactionManager(web3j, credentials);
     Transaction transaction;
+
+
     ProgressDialog mProgressDialog;
 
     // BLUETOOTH STUFF
-    Button btnRequestPoL;
-    Button btnONOFF;
-    Button btnStartConnection;
     private TextView t;
     EditText textAmountToSend;
     Spinner mySpinner, spinner;
@@ -137,10 +133,9 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
     BluetoothAdapter mBluetoothAdapter;
     BluetoothConnectionService [] mBluetoothConnection = new BluetoothConnectionService[8];
     BluetoothDevice mBTDevice;
-    private static final UUID MY_UUID_INSECURE = UUID.fromString("8ce255c0-200a-11e0-ac64-0800200c9a66");
+
 
     private String currentLocation = "Unavailable";
-
     private LocationManager locationManager;
     private LocationListener listener;
 
@@ -167,10 +162,8 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main_page);
 
-        // BLOCKCHAIN CONTRACT STUFF
 
-
-
+        // All the buttons and the visuals for the .xml layout
 
         textAmountToSend = (EditText) findViewById(R.id.textAmount);
 
@@ -186,16 +179,28 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         adapter2.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinner.setAdapter(adapter2);
 
+        lvNewDevices = (ListView) findViewById(R.id.lvNewDevices);
+        t = (TextView) findViewById(R.id.textView);
+
+        mBTDevices = new ArrayList<>();
+
+        lvNewDevices.setOnItemClickListener(MainPage.this);
+
         mySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             public void onItemSelected(
                     AdapterView<?> adapterView, View view, int i, long l) {
-                myPrivateKeys = MainPage.this.getResources().getStringArray(R.array.privateKeys);
+                // When dropdown is pressed change the address settings and redeploy contract with right keys
 
+                myPrivateKeys = MainPage.this.getResources().getStringArray(R.array.privateKeys);
                 myPublicKey = mySpinner.getSelectedItem().toString();
                 myPrivateKey = myPrivateKeys[mySpinner.getSelectedItemPosition()];
                 credentials = Credentials.create(myPrivateKey);
                 fastRawTxMgr = new FastRawTransactionManager(web3j, credentials);
                 transaction = Transaction.load(contractAddress, web3j, fastRawTxMgr, gasPrice, gasLimit);
+
+                mBluetoothConnection[0].credentials = Credentials.create(myPrivateKey);
+                mBluetoothConnection[0].fastRawTxMgr = new FastRawTransactionManager(web3j, credentials);
+                mBluetoothConnection[0].transaction = Transaction.load(contractAddress, web3j, fastRawTxMgr, gasPrice, gasLimit);
                 Log.d(TAG, myPublicKey);
             }
 
@@ -204,38 +209,17 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
             }
         });
-        myPrivateKeys = MainPage.this.getResources().getStringArray(R.array.privateKeys);
 
+        // Initialize various settings
+        myPrivateKeys = MainPage.this.getResources().getStringArray(R.array.privateKeys);
         myPublicKey = mySpinner.getSelectedItem().toString();
         myPrivateKey = myPrivateKeys[mySpinner.getSelectedItemPosition()];
+        destination = spinner.getSelectedItem().toString();
+
+        // Initialize credentials and deploy the smart contract
         credentials = Credentials.create(myPrivateKey);
         fastRawTxMgr = new FastRawTransactionManager(web3j, credentials);
         transaction = Transaction.load(contractAddress, web3j, fastRawTxMgr, gasPrice, gasLimit);
-
-
-        destination = spinner.getSelectedItem().toString();
-
-
-        // BLUETOOTH STUFF
-
-        //btnDebug = (Button) findViewById(R.id.Debugging);
-//        btnDebug.setOnClickListener(new View.OnClickListener() {
-//            @Override
-//            public void onClick(View v) {
-//                OpenDebugging(null);
-//
-//            }
-//
-//        });
-
-
-
-        btnRequestPoL = (Button) findViewById(R.id.RequestPoL);
-        btnONOFF = (Button) findViewById(R.id.btnONOFF);
-        btnStartConnection = (Button) findViewById(R.id.btnStartConnection);
-        btnStartConnection = (Button) findViewById(R.id.btnStartConnection);
-        lvNewDevices = (ListView) findViewById(R.id.lvNewDevices);
-        t = (TextView) findViewById(R.id.textView);
 
         //Broadcasts when bond state changes (ie:pairing)
         IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
@@ -243,11 +227,12 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
-
+        // Get bonded devices into array mBondedDevices
+        // From mBondedDevices we will show the eligible for communication devices
+        // to the user to see and pick
         Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
-        // If there are paired devices
-        Log.d(TAG, "Bonded Devices:");
 
+        // If there are paired devices
         if (pairedDevices.size() > 0) {
             // Loop through paired devices
             for (BluetoothDevice device : pairedDevices) {
@@ -256,33 +241,18 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
             }
         }
 
-        mBTDevices = new ArrayList<>();
-
-        lvNewDevices.setOnItemClickListener(MainPage.this);
-
+        // LocationManager and LocationListener to listen and register any changes to the location
+        // and update location to the currentLocation string
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
-
-
-
-
 
         listener = new LocationListener() {
             @Override
             public void onLocationChanged(Location location) {
                 if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                    // TODO: Consider calling
-                    //    Activity#requestPermissions
-                    // here to request the missing permissions, and then overriding
-                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                    //                                          int[] grantResults)
-                    // to handle the case where the user grants the permission. See the documentation
-                    // for Activity#requestPermissions for more details.
                     return;
                 }
-                //Log.d(TAG, "RequestLocation: Location Changed... " + locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER));
 
-                //t.setText("\n " + location.getLongitude() + " " + location.getLatitude());
-                //Log.d(TAG, "THIS: " + currentLocation + " - " + mBluetoothConnection.currentLocation);
+                // Get Latitude and Longitude
                 double temp1 = location.getLatitude();
                 double temp2 = location.getLongitude();
                 DecimalFormat df = new DecimalFormat("#.####");
@@ -292,12 +262,11 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                 double lat = new Double(df.format(temp1));
                 double lon = new Double(df.format(temp2));
 
-
+                // assign to currentLocation
                 currentLocation = lon + ", " + lat;
 
-                if (mBluetoothConnection[0] != null)mBluetoothConnection[0].currentLocation = currentLocation;
-
-
+                // inform BluetoothConnectionService of the new connection
+                if (mBluetoothConnection[0] != null) mBluetoothConnection[0].currentLocation = currentLocation;
             }
 
             @Override
@@ -319,21 +288,17 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
             }
         };
 
+        // Enable location provider so that the app has access to the phone's location
+        // Enable Bluetooth when opening the app
+        // Enable Discoverability as well (Depending on the android OS infinite discoverability will not be allowed)
         activateLocationProvider();
-
-
-
-
-
         enableBT();
         btnEnableDisable_Discoverable();
 
+        // Start discovering other devices
         mBluetoothConnection[0] = new BluetoothConnectionService(MainPage.this);
         btnDiscover(null);
-
-        //changeGreeting();
     }
-
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
@@ -346,6 +311,12 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         }
     }
 
+    /**
+     * Function to activate location provider. After calling the device will have access to the devices location.
+     * locationManager will request location updates from the GPS_PROVIDER of the phone when availlable.
+     * In cases where it is not availlable, such as indoors, the app will request updates from its
+     * NETWORK_PROVIDER.
+     */
     void activateLocationProvider() {
         // first check for permissions
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -359,20 +330,16 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         //noinspection MissingPermission
         Log.d(TAG, "RequestLocation: Requesting Location Updates... ");
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    Activity#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for Activity#requestPermissions for more details.
             return;
         }
         locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, listener);
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, listener);
     }
 
-
+    /**
+     * Broadcast Receiver for changes made to bluetooth states such as
+     * turning BT on and off
+     */
     private final BroadcastReceiver mBroadcastReceiver1 = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
@@ -399,8 +366,8 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
     };
 
     /**
-     * Broadcast Receiver for changes made to bluetooth states such as:
-     * 1) Discoverability mode on/off or expire.
+     * Broadcast Receiver for changes made to bluetooth states such as
+     * turning Discoverability mode on/off or expire.
      */
     private final BroadcastReceiver mBroadcastReceiver2 = new BroadcastReceiver() {
 
@@ -409,7 +376,6 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
             final String action = intent.getAction();
 
             if (action.equals(BluetoothAdapter.ACTION_SCAN_MODE_CHANGED)) {
-
                 int mode = intent.getIntExtra(BluetoothAdapter.EXTRA_SCAN_MODE, BluetoothAdapter.ERROR);
 
                 switch (mode) {
@@ -431,7 +397,6 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                         Log.d(TAG, "mBroadcastReceiver2: Connected.");
                         break;
                 }
-
             }
         }
     };
@@ -440,7 +405,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
 
     /**
-     * Broadcast Receiver for listing devices that are not yet paired
+     * Broadcast Receiver for listing devices that are paired
      * -Executed by btnDiscover() method.
      */
     private BroadcastReceiver mBroadcastReceiver3 = new BroadcastReceiver() {
@@ -473,7 +438,6 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
 
             if(action.equals(BluetoothDevice.ACTION_BOND_STATE_CHANGED)){
                 BluetoothDevice mDevice = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                //3 cases:
                 //case1: bonded already
                 if (mDevice.getBondState() == BluetoothDevice.BOND_BONDED){
                     Log.d(TAG, "BroadcastReceiver: BOND_BONDED.");
@@ -492,24 +456,18 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
     };
 
     /**
-     * Create Method for starting connection
-     * Remember the connection fail and the app will crash if you have not paired yet
+     * Starts BT connection with another device
+     * Remember the connection will fail and the app will crash if you have not paired yet
      */
     public void startConnection () {
-        startBTConnection(mBTDevice, MY_UUID_INSECURE);
+        Log.d(TAG,"startBTConnection: Initializing RFCOM Bluetooth Connection.");
+        mBluetoothConnection[0].startClient(mBTDevice, MY_UUID_INSECURE);
     }
+
 
     /**
-     * starting chat service method
-     **/
-    public void startBTConnection(BluetoothDevice device, UUID uuid) {
-        Log.d(TAG,"startBTConnection: Initializing RFCOM Bluetooth Connection.");
-
-        mBluetoothConnection[0].startClient(device, uuid);
-
-    }
-
-
+     * Enables Bluetooth if not already enabled
+     */
     public void enableBT(){
         if(mBluetoothAdapter == null){
             Log.d(TAG, "enableBT: Does not have BT capabilities.");
@@ -527,19 +485,26 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         }
     }
 
-
+    /**
+     * Enables Discoverability of device if already disabled, or disables
+     * Discoverability of device if already enabled.
+     */
     public void btnEnableDisable_Discoverable() {
-        Log.d(TAG, "btnEnableDisable_Discoverable: Making device discoverable for 300 seconds.");
+        Log.d(TAG, "btnEnableDisable_Discoverable: Making device discoverable for unlimited seconds.");
 
         Intent discoverableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
         discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 0);
         startActivity(discoverableIntent);
 
-        IntentFilter intentFilter = new IntentFilter(mBluetoothAdapter.ACTION_SCAN_MODE_CHANGED);
+        IntentFilter intentFilter = new IntentFilter( BluetoothAdapter.ACTION_SCAN_MODE_CHANGED );
         registerReceiver(mBroadcastReceiver2,intentFilter);
 
     }
 
+    /**
+     * Starts discovering for disoverable devices with Bluetooth enabled
+     * @param view
+     */
     public void btnDiscover(View view) {
         Log.d(TAG, "btnDiscover: Looking for unpaired devices.");
 
@@ -584,6 +549,14 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         }
     }
 
+    /**
+     * When a device of the ListView is clicked, change the color for the User to see
+     * and save which device was clicked (with colors array)
+     * @param adapterView
+     * @param view
+     * @param i
+     * @param l
+     */
     @Override
     public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
         //first cancel discovery because its very memory intensive.
@@ -595,31 +568,10 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
             view.setBackgroundColor(Color.GREEN);
             colors[i] = true;
         }
-        //lvNewDevices.setTextColor( Color.BLACK/*or whatever RGB suites good contrast*/);
-//        mBluetoothAdapter.cancelDiscovery();
-//
-//        if (mBluetoothConnection[0] != null)
-//            mBluetoothConnection[0].cancel();
-//
-//        Log.d(TAG, "onItemClick: You Clicked on a device.");
-//        String deviceName = mBTDevices.get(i).getName();
-//        String deviceAddress = mBTDevices.get(i).getAddress();
-//
-//        Log.d(TAG, "onItemClick: deviceName = " + deviceName);
-//        Log.d(TAG, "onItemClick: deviceAddress = " + deviceAddress);
-//
-//        //create the bond.
-//        //NOTE: Requires API 17+? I think this is JellyBean
-//        if(Build.VERSION.SDK_INT > Build.VERSION_CODES.JELLY_BEAN_MR2){
-//            Log.d(TAG, "Trying to pair with " + deviceName);
-//            mBTDevices.get(i).createBond();
-//
-//            mBTDevice = mBTDevices.get(i);
-//            mBluetoothConnection[0] = new BluetoothConnectionService(MainPage.this);
-//            startConnection();
-//        }
     }
 
+    // CHECK THESE
+    @SuppressLint("HandlerLeak")
     Handler stopProgressDialogTx = new Handler() {
         @Override
         public void handleMessage(Message msg) {
@@ -627,6 +579,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         }
     };
 
+    @SuppressLint("HandlerLeak")
     Handler startProgressDialogTx = new Handler() {
         @Override
         public void handleMessage(Message msg) {
@@ -634,6 +587,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         }
     };
 
+    @SuppressLint("HandlerLeak")
     Handler stopProgressDialog = new Handler() {
         @Override
         public void handleMessage(Message msg) {
@@ -641,6 +595,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         }
     };
 
+    @SuppressLint("HandlerLeak")
     Handler startProgressDialog = new Handler() {
         @Override
         public void handleMessage(Message msg) {
@@ -648,59 +603,15 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         }
     };
 
-//    @Override
-//    public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
-//        Log.e(TAG, "Item Clicked");
-//        connectDevice(i);
-//    }
-
-    public void connectDevice (int i) {
-        //connectDeviceBluetooth( i );
-        Thread t = new Thread( new Runnable() {
-            @Override
-            public void run() {
-                startProgressDialog.sendEmptyMessage(0);
-                connectDeviceBluetooth(i);
-                stopProgressDialog.sendEmptyMessage(0);
-            }
-        });
-//
-        //mProgressDialog = ProgressDialog.show(MainPage.this, "Connecting Bluetooth", "Please wait...", true);
-        t.start();
-
-
-    }
-
-    public void connectDeviceBluetooth (int i) {
-        //first cancel discovery because its very memory intensive.
-
-        mBluetoothAdapter.cancelDiscovery();
-        if (mBluetoothConnection[0] != null)
-            mBluetoothConnection[0].cancel();
-
-        Log.d(TAG, "onItemClick: You Clicked on a device.");
-        String deviceName = mBTDevices.get(i).getName();
-        String deviceAddress = mBTDevices.get(i).getAddress();
-
-        Log.d(TAG, "onItemClick: deviceName = " + deviceName);
-        Log.d(TAG, "onItemClick: deviceAddress = " + deviceAddress);
-
-        //create the bond.
-        //NOTE: Requires API 17+? I think this is JellyBean
-        if(Build.VERSION.SDK_INT > Build.VERSION_CODES.JELLY_BEAN_MR2){
-            Log.d(TAG, "Trying to pair with " + deviceName);
-            mBTDevices.get(i).createBond();
-
-            mBTDevice = mBTDevices.get(i);
-            mBluetoothConnection[0] = new BluetoothConnectionService(MainPage.this);
-            startConnection();
-        }
-    }
-
+    /**
+     * Method that connects to the already Paired BT device that the User has clicked
+     * @param i: the item position of the device that was picked from the User
+     */
     public void connectBondedDeviceBluetooth (int i) {
-        //first cancel discovery because its very memory intensive.
-
+        // first cancel discovery because its very memory intensive.
         mBluetoothAdapter.cancelDiscovery();
+
+        // If already connected with a device, cancel connection.
         if (mBluetoothConnection[0] != null)
             mBluetoothConnection[0].cancel();
 
@@ -711,8 +622,8 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         Log.d(TAG, "onItemClick: deviceName = " + deviceName);
         Log.d(TAG, "onItemClick: deviceAddress = " + deviceAddress);
 
-        //create the bond.
-        //NOTE: Requires API 17+? I think this is JellyBean
+        // create the bond.
+        // NOTE: Requires API 17+? I think this is JellyBean
         if(Build.VERSION.SDK_INT > Build.VERSION_CODES.JELLY_BEAN_MR2){
             Log.d(TAG, "Trying to pair with " + deviceName);
             mBTDevices.get(i).createBond();
@@ -723,166 +634,62 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         }
     }
 
-    public void requestOneWitness (View view) {
-
-    }
-
-    public void connectListEach () {
-        mBluetoothAdapter.cancelDiscovery();
-        int numOfPaired = 0;
-
-
-        for (BluetoothDevice device : mBTDevices) {
-            Log.d(TAG, "Device #" + numOfPaired++);
-            String deviceName = device.getName();
-            String deviceAddress = device.getAddress();
-
-            Log.d(TAG, "connectListEach: deviceName = " + deviceName);
-            Log.d(TAG, "connectListEach: deviceAddress = " + deviceAddress);
-
-            if (deviceName == null) continue;
-            //if (!deviceName.equals("Black MLS") && !deviceName.equals("[TV] UE65JS9000")) continue;
-
-            if(Build.VERSION.SDK_INT > Build.VERSION_CODES.JELLY_BEAN_MR2){
-                Log.d(TAG, "Trying to pair with " + deviceName);
-                device.createBond();
-
-                mBTDevice = device;
-                mBluetoothConnection[0] = new BluetoothConnectionService(MainPage.this);
-
-            }
-            Log.d(TAG, "STARTING startConnection...");
-            startConnection();
-            Log.d(TAG, "ENDING startConnection...");
-
-            while (true) {
-                if (mBluetoothConnection[0].unlock) break;
-            }
-
-
-            Log.d(TAG, "STARTING requestPoL...");
-            requestPoL(null);
-            Log.d(TAG, "ENDING requestPoL...");
-
-            if (mBluetoothConnection[0] != null)
-                mBluetoothConnection[0].cancel();
-
-
-        }
-    }
-
-
-
-    public void requestPoL(View view) {
-        Log.d(TAG, "Requesting Proof-of-Location...");
-        t.clearComposingText();
-        if (mBTDevice == null) return;
-        Log.d(TAG, "Compatibility: " + mBluetoothConnection[0].isIncompatibleDevice + " - Device: " + mBTDevice.getName());
-        if (!mBluetoothConnection[0].isIncompatibleDevice) {
-            if (!currentLocation.equals("Unavailable")) {
-                String reqPOL = "POL request: " + currentLocation;
-                byte[] bytes = reqPOL.getBytes(Charset.defaultCharset());
-                mBluetoothConnection[0].write(bytes);
-
-                new Thread( new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            Thread.sleep(500);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                        String temp = "" + reqPOL + "\n" + getCurrentMessage();
-
-                        Log.d(TAG, temp);
-
-                    }
-                }).start();
-            }
-            else ;//resultDisplay.setText("Failed! Location unavailable...");
-        } else {
-            Log.d(TAG, "Device "
-
-                    + mBTDevice + " is incompatible... Can't write here!");
-        }
-    }
-
-
+    /**
+     * Sends public Key to the connected device. This is the address to the Ethereum blockchain
+     * It will be used to digitally sign the device's location later
+     * Connected device will respond with freshly generated RSA public Key
+     * This key will be used to hide the location from malicious MITM users that don't have the private key
+     * @param view
+     */
     public void sendRequestPublicKey (View view) {
         Log.d(TAG, "Sending and requesting Public Key...");
-        //t.clearComposingText();
+        // If not connected to a BT device stop
         if (mBTDevice == null) return;
-        Log.d(TAG, "Compatibility: " + mBluetoothConnection[0].isIncompatibleDevice + " - Device: " + mBTDevice.getName());
+
+        // If device is compatible (only if connection has been successful) send key
+        Log.d(TAG, "Compatibility: " + mBluetoothConnection[0].isIncompatibleDevice + " for Device: " + mBTDevice.getName());
         if (!mBluetoothConnection[0].isIncompatibleDevice) {
-            if (true) {
-                String reqPOL = "My Public Key is: " + myPublicKey;
-                byte[] bytes = reqPOL.getBytes(Charset.defaultCharset());
-                mBluetoothConnection[0].write(bytes);
+            // Create string with public key and its identifier "My Public Key is: "
+            // When another device receives a message that starts with this identifier
+            // It will know that a public key is needed
+            String reqPOL = "My Public Key is: " + myPublicKey;
+            byte[] bytes = reqPOL.getBytes(Charset.defaultCharset());
+            mBluetoothConnection[0].write(bytes);
 
-                new Thread( new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            Thread.sleep(5000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                        witnessKey = getCurrentMessage();
-                        System.out.println(witnessKey);
-                        String temp = "" + reqPOL + "\nHis Public key is: " + witnessKey.substring(0, 10);
-
-                        Log.d(TAG, temp);
-
-
+            // CHECK HERE
+            new Thread( new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Thread.sleep(5000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
                     }
-                }).start();
-                //resultDisplay.setText("Success!");
-            }
-            else ;//resultDisplay.setText("Failed! Location unavailable...");
-        } else {
-            Log.d(TAG, "Device "
+                    witnessKey = getCurrentMessage();
+                    System.out.println(witnessKey);
+                    String temp = "" + reqPOL + "\nHis Public key is: " + witnessKey.substring(0, 10);
 
-                    + mBTDevice + " is incompatible... Can't write here!");
+                    Log.d(TAG, temp);
+
+
+                }
+            }).start();
+        } else {
+            Log.d(TAG, "Device " + mBTDevice + " is incompatible... Can't write here!");
         }
     }
 
-    public String sendRequestPublicKeyMultiple (View view, String temp) {
-        Log.d(TAG, "Sending and requesting Public Key...");
-        //t.clearComposingText();
-        if (mBTDevice == null) return "";
-        Log.d(TAG, "Compatibility: " + mBluetoothConnection[0].isIncompatibleDevice + " - Device: " + mBTDevice.getName());
-        if (!mBluetoothConnection[0].isIncompatibleDevice) {
-            if (true) {
-                String reqPOL = "My Public Key is: " + myPublicKey;
-                byte[] bytes = reqPOL.getBytes(Charset.defaultCharset());
-                mBluetoothConnection[0].write(bytes);
-
-                return temp;
-
-                //resultDisplay.setText("Success!");
-            }
-            else ;//resultDisplay.setText("Failed! Location unavailable...");
-        } else {
-            Log.d(TAG, "Device "
-
-                    + mBTDevice + " is incompatible... Can't write here!");
-        }
-
-        return "";
-    }
-
-
-
-
-
-
-
-
-
+    /**
+     * Sends location to the connected device, after encrypting it with the RSA key that was previously
+     * received, and after signing it with the private key corresponding to its public key (Ethereum Address)
+     * @param view
+     */
     public void sendLocation (View view) {
-
-        //t.clearComposingText();
+        // If not connected to a BT device stop
         if (mBTDevice == null) return;
+
+
+        // If device is compatible (only if connection has been successful) send location
         Log.d(TAG, "Compatibility: " + mBluetoothConnection[0].isIncompatibleDevice + " - Device: " + mBTDevice.getName());
         if (!mBluetoothConnection[0].isIncompatibleDevice) {
             if (!currentLocation.equals("Unavailable")) {
@@ -891,18 +698,20 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                 Thread tSendLocation = new Thread( new Runnable() {
                     @Override
                     public void run() {
-                        Log.d(TAG, "Encrypting Message...");
-                        Log.d(TAG, "With key: " + witnessKey);
+                        // encrypts the message with the key received previously from the witness
+                        Log.d(TAG, "Encrypting Message with key: " + witnessKey);
                         String encrypted = "PoL Request: " + encryptRSAToString(locationmessage, witnessKey);
                         Log.d(TAG, "Finished encrypting...");
 
-                        Log.d(TAG, "Encrypted data: " + encrypted);
-
+                        // Sign the message with the privateKey of the Device
                         Log.d(TAG, "Signing Message...");
                         byte[] bytes = encrypted.getBytes(Charset.defaultCharset());
                         String prefix = PERSONAL_MESSAGE_PREFIX + encrypted.length();
                         byte[] msgHash = Hash.sha3((prefix + encrypted).getBytes());
 
+                        // Create the signature data with the message (bytes),
+                        // the private and public key (credentials),
+                        // and with sha3 hashing enabled
                         Sign.SignatureData signature = Sign.signMessage(bytes, credentials.getEcKeyPair(), true);
                         byte [] v = new byte[] {signature.getV()};
                         byte [] r = signature.getR();
@@ -914,24 +723,10 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                         System.arraycopy(r, 0, bytes2, encrypted.getBytes().length, r.length);
                         System.arraycopy(s, 0, bytes2, encrypted.getBytes().length + r.length, s.length);
                         System.arraycopy(v, 0, bytes2, encrypted.getBytes().length + r.length + s.length, v.length);
-                        //String r = ":" + new String(signature.getR());
-                        //Log.e(TAG, r);
-                        //String s = ":" + new String(signature.getS());
 
-                        //byte [] bytes2 = encrypted.getBytes(Charset.defaultCharset());
-
-                        //Log.e(TAG, "r: " + Arrays.toString(r));
-                        //Log.e(TAG, "s: " + Arrays.toString(s));
-                        //Log.e(TAG, "v: " + Arrays.toString(v));
-
-                        Log.d(TAG, "Encrypted data R: " + "0x" + Keys.getAddress(new BigInteger(1, signature.getR())));
-                        Log.d(TAG, "Encrypted data S: " + "0x" + Keys.getAddress(new BigInteger(1, signature.getS())));
-                        Log.d(TAG, "Encrypted data V: " + "0x" + Keys.getAddress(BigInteger.valueOf(signature.getV())));
                         Log.d(TAG, "Finished signing...");
 
-
-                        Log.d(TAG, Arrays.toString( bytes ));
-                        // transfer this to BluetoothConnectionService
+                        // CHECK HERE
                         String pubKey = null;
                         try {
                             pubKey = Sign.signedMessageToKey(bytes, signature).toString(16);
@@ -939,12 +734,12 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                             e.printStackTrace();
                         }
                         String signerAddress = "0x" + Keys.getAddress(pubKey);
-
                         Log.d(TAG, "My Publickey: " + myPublicKey + "\nPublickey: " + signerAddress);
+
 
                         mBluetoothConnection[0].write(bytes2);
 
-
+                        // CHECK HERE
                         try {
                             Thread.sleep(500);
                         } catch (InterruptedException e) {
@@ -957,255 +752,31 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                     }
                 });
                 tSendLocation.start();
+
                 try {
                     tSendLocation.join();
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             }
-            else ;//resultDisplay.setText("Failed! Location unavailable...");
         } else {
-            Log.d(TAG, "Device "
-
-                    + mBTDevice + " is incompatible... Can't write here!");
+            Log.d(TAG, "Device " + mBTDevice + " is incompatible... Can't write here!");
         }
     }
 
-
-    public void OpenDebugging(View view) {
-        Intent intent = new Intent(this, MainActivity.class);
-        startActivity(intent);
-    }
-
-    public void RequestPoL(View view) {
-
-
-        Log.d(TAG, "STARTING connectListEach...");
-        connectListEach();
-        Log.d(TAG, "ENDING connectListEach...");
-    }
-
+    /**
+     * Get the last received message from the BluetoothConnectionService
+     * @return
+     */
     public String getCurrentMessage() {
         return mBluetoothConnection[0].currentMessage;
     }
 
-//    public void dothis(View view) {
-//        //CHECKSTYLE:OFF
-//        String signature = "0x2c6401216c9031b9a6fb8cbfccab4fcec6c951cdf40e2320108d1856eb532250576865fbcd452bcdc4c57321b619ed7a9cfd38bd973c3e1e0243ac2777fe9d5b1b";
-////        String signature = "0x0993fdb1eee17965ce2ad068292f0d99280a0539686e47f7ce3358c6a6c52f8b8e3914f43a25c446";
-////        0x3bc843a917d6c19c487c1d0c660cdd61389ce2a7651ee3171bcc212ffddca164
-////        0x0993fdb1eee17965ce2ad068292f0d99280a0539
-//        //CHECKSTYLE:ON
-//        String address = "0x31b26e43651e9371c88af3d36c14cfd938baf4fd";
-//        String message = "v0G9u7huK4mJb2K1";
-//
-//        String prefix = PERSONAL_MESSAGE_PREFIX + message.length();
-//        byte[] msgHash = Hash.sha3( (prefix + message).getBytes() );
-//
-//        byte[] signatureBytes = Numeric.hexStringToByteArray( signature );
-//        byte v = signatureBytes[64];
-//        if (v < 27) {
-//            v += 27;
-//        }
-//
-//        Sign.SignatureData sd = new Sign.SignatureData(
-//                v,
-//                (byte[]) Arrays.copyOfRange( signatureBytes, 0, 32 ),
-//                (byte[]) Arrays.copyOfRange( signatureBytes, 32, 64 ) );
-//
-//        String addressRecovered = null;
-//        boolean match = false;
-//
-//        // Iterate for each possible key to recover
-//        for (int i = 0; i < 4; i++) {
-//            BigInteger publicKey = Sign.recoverFromSignature(
-//                    (byte) i,
-//                    new ECDSASignature( new BigInteger( 1, sd.getR() ), new BigInteger( 1, sd.getS() ) ),
-//                    msgHash );
-//
-//            if (publicKey != null) {
-//                addressRecovered = "0x" + Keys.getAddress( publicKey );
-//
-//                if (addressRecovered.equals( address )) {
-//                    Log.e(TAG, "My Publickey: " + address + "\nPublickey: " + addressRecovered);
-//                    match = true;
-//                    break;
-//                }
-//            }
-//        }
-//    }
-//
-//    public String encryptMessage (String plaintext) throws InvalidKeyException, NoSuchPaddingException, NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException, BadPaddingException, IllegalBlockSizeException {
-//
-//        new Thread( new Runnable() {
-//            @Override
-//            public void run() {
-//                Log.d(TAG, "Plaintext message: " + plaintext);
-//
-//                // generate a new public/private key pair to test with (note. you should only do this once and keep them!)
-//                KeyPair kp = getKeyPair();
-//                Log.d(TAG, "HERE");
-//                PublicKey publicKey = kp.getPublic();
-//                byte[] publicKeyBytes = publicKey.getEncoded();
-//                String publicKeyBytesBase64 = new String(Base64.encode(publicKeyBytes, Base64.DEFAULT));
-//
-//                PrivateKey privateKey = kp.getPrivate();
-//                byte[] privateKeyBytes = privateKey.getEncoded();
-//                String privateKeyBytesBase64 = new String(Base64.encode(privateKeyBytes, Base64.DEFAULT));
-//
-//                // test encryption
-//                String encrypted = encryptRSAToString(plaintext, publicKeyBytesBase64);
-//                String encrypted2 = encryptRSAToString(plaintext, publicKeyBytesBase64);
-//                Log.d(TAG, "Encrypted message 1: " + encrypted);
-//                Log.d(TAG, "Encrypted message 2: " + encrypted2);
-//
-//                // test decryption
-//                String decrypted = decryptRSAToString(encrypted, privateKeyBytesBase64);
-//                String decrypted2 = decryptRSAToString(encrypted2, privateKeyBytesBase64);
-//                Log.d(TAG, "Decrypted message 1: " + decrypted);
-//                Log.d(TAG, "Decrypted message 2: " + decrypted2);
-//
-//            }
-//        }).start();
-//
-//
-//
-//        return "";
-//    }
-
-    public void dothis (View view) {
-        Thread tProcedure = new Thread( new Runnable() {
-            @Override
-            public void run() {
-                int i = 0;
-                int numOfProofs = 0;
-                for (boolean isClicked : colors){
-                    if (isClicked) numOfProofs++;
-
-                    i++;
-                }
-
-                int finalNumOfProofs = numOfProofs;
-
-                Thread tMakeTransaction = new Thread( new Runnable() {
-                    @Override
-                    public void run() {
-                        Log.d(TAG, "Making transaction...");
-                        startProgressDialog.sendEmptyMessage(0);
-                        transferToContract(null, finalNumOfProofs );
-                        stopProgressDialog.sendEmptyMessage(0);
-                    }
-                });
-                if (finalNumOfProofs > 0) {
-                    fastRawTxMgr.setNonce( BigInteger.valueOf( -1 ) );
-
-                    tMakeTransaction.start();
-                    try {
-                        tMakeTransaction.join();
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                i = 0;
-
-                for (boolean isClicked : colors){
-                    int finalI = i;
-                    Thread forEachDevice = new Thread( new Runnable() {
-                        @Override
-                        public void run() {
-                            if (isClicked) {
-                                Log.e(TAG, "[Started]Connecting to device: " + mBondedDevices.get( finalI ).getName());
-                                connectBondedDeviceBluetooth( finalI );
-
-
-                                Thread tExchangeKeys = new Thread( new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        Log.e(TAG, "[SOS]Exchanging Keys...");
-                                        startProgressDialog.sendEmptyMessage(0);
-                                        sendRequestPublicKey(null);
-                                        stopProgressDialog.sendEmptyMessage(0);
-                                        Log.e(TAG, "[SOS]Finished Exchanging Keys...");
-                                    }
-                                });
-
-                                tExchangeKeys.start();
-                                try {
-                                    tExchangeKeys.join();
-                                } catch (InterruptedException e) {
-                                    e.printStackTrace();
-                                }
-
-
-
-                                Thread tSendLocation = new Thread( new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        Log.e(TAG, "[SOS]Sending Location...");
-                                        startProgressDialog.sendEmptyMessage(0);
-                                        boolean sentinel = true;
-                                        String cur = getCurrentMessage();
-                                        Log.d(TAG, cur);
-                                        while (sentinel) {
-                                            try {
-                                                Thread.sleep(3000);
-                                            } catch (InterruptedException e) {
-                                                e.printStackTrace();
-                                            }
-                                            if (!cur.equals(getCurrentMessage())) sentinel = false;
-                                        }
-                                        witnessKey = getCurrentMessage();
-                                        Log.d(TAG, witnessKey);
-                                        sendLocation(null);
-                                        stopProgressDialog.sendEmptyMessage(0);
-                                        Log.e(TAG, "[SOS]Finished Sending Location...");
-                                    }
-                                });
-
-                                tSendLocation.start();
-                                try {
-                                    tSendLocation.join();
-                                } catch (InterruptedException e) {
-                                    e.printStackTrace();
-                                }
-
-                                Log.e(TAG, "[Finished]Device " + mBondedDevices.get( finalI ).getName() + "just finished");
-
-                            }
-                        }
-                    } );
-                    forEachDevice.start();
-                    try {
-                        forEachDevice.join();
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    i++;
-                }
-
-
-            }
-        } );
-        tProcedure.start();
-
-    }
-
-
-    public static KeyPair getKeyPair() {
-        KeyPair kp = null;
-        try {
-            KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
-            kpg.initialize(2048);
-            kp = kpg.generateKeyPair();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        return kp;
-    }
-
-    public static String encryptRSAToString(String clearText, String publicKey) {
+    /**
+     * Method to encrypt the text with the publicKey received from the Bluetooth Witness device
+     * It uses RSA encryption, making it impossible for other users to decrypt
+     */
+     static String encryptRSAToString(String clearText, String publicKey) {
         Log.d(TAG, "ClearText: " + clearText);
         Log.d(TAG, "publicKey: " + publicKey);
         String encryptedBase64 = "";
@@ -1228,32 +799,13 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         return encryptedBase64.replaceAll("(\\r|\\n)", "");
     }
 
-    public static String decryptRSAToString(String encryptedBase64, String privateKey) {
-
-        String decryptedString = "";
-        try {
-            KeyFactory keyFac = KeyFactory.getInstance("RSA");
-            KeySpec keySpec = new PKCS8EncodedKeySpec(Base64.decode(privateKey.trim().getBytes(), Base64.DEFAULT));
-            Key key = keyFac.generatePrivate(keySpec);
-
-            // get an RSA cipher object and print the provider
-            final Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWITHSHA-256ANDMGF1PADDING");
-            // encrypt the plain text using the public key
-            cipher.init(Cipher.DECRYPT_MODE, key);
-
-            byte[] encryptedBytes = Base64.decode(encryptedBase64, Base64.DEFAULT);
-            byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
-            decryptedString = new String(decryptedBytes);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        return decryptedString;
-    }
-
-
-
-    public void transferToContract(View view, int numOfProofs) {
+    /**
+     * Method to initiate the transaction procedure. Makes call to the Ethereum smart contract
+     * and sends the funds issued by the User to the contract,
+     * with all the necessary information (destination, amount, number of witnesses' proofs, etc
+     * @param numOfProofs
+     */
+    public void transferToContract(int numOfProofs) {
         myPublicKey = mySpinner.getSelectedItem().toString();
         myPrivateKey = myPrivateKeys[mySpinner.getSelectedItemPosition()];
         destination = spinner.getSelectedItem().toString();
@@ -1299,31 +851,12 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         }
     }
 
-    public void confirmTransaction(View view) {
-        new Thread( new Runnable() {
-
-            @Override
-            public void run() {
-                Future<TransactionReceipt> isTransferred = transaction.confirmTransaction().sendAsync();
-                TransactionReceipt transactionReceipt  = null;
-                try {
-                    transactionReceipt = isTransferred.get();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                } catch (ExecutionException e) {
-                    e.printStackTrace();
-                }
-                if (transactionReceipt != null) {
-                    Log.d(TAG, "PoL approved... Transaction confirmed successfully");
-                    Log.d(TAG, "Gas used: " + transactionReceipt.getGasUsed());
-                }
-
-            }
-        }).start();
-    }
-
-
-
+    /**
+     * Method that is called by pressing the Apply For Transaction button
+     * Uses threads to count the witnesses, make the transaction and show UI loading Dialog appropriately
+     * without interfering with the UI negatively
+     * @param view
+     */
     public void applyTransaction(View view) {
         Thread tProcedure = new Thread( new Runnable() {
             @Override
@@ -1332,7 +865,6 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                 int numOfProofs = 0;
                 for (boolean isClicked : colors){
                     if (isClicked) numOfProofs++;
-
                     i++;
                 }
 
@@ -1343,7 +875,7 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
                     public void run() {
                         Log.d(TAG, "Making transaction...");
                         startProgressDialogTx.sendEmptyMessage(0);
-                        transferToContract(null, finalNumOfProofs );
+                        transferToContract(finalNumOfProofs);
                         stopProgressDialogTx.sendEmptyMessage(0);
                     }
                 });
@@ -1363,6 +895,12 @@ public class MainPage extends AppCompatActivity implements AdapterView.OnItemCli
         tProcedure.start();
     }
 
+    /**
+     * Method to connect with the Witnesses' devices, exchange keys, and send location of the Device
+     * for them to prove its location
+     * Uses threads to show UI loading Dialog appropriately without interfering with the UI negatively
+     * @param view
+     */
     public void confirmPoL(View view) {
         Thread tProcedure = new Thread( new Runnable() {
             @Override

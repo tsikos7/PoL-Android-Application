@@ -16,8 +16,8 @@
         android:layout_marginStart="18dp"
         android:layout_marginTop="17dp"
         android:layout_marginEnd="215dp"
-        android:onClick="requestPoL"
-        android:text="Activate Bluetooth" />
+        android:onClick="btnDiscover"
+        android:text="@string/activate_bluetooth" />
 
     <Button
         android:id="@+id/Scanning"
@@ -29,8 +29,8 @@
         android:layout_marginTop="17dp"
         android:layout_marginEnd="21dp"
         android:layout_toEndOf="@+id/RequestPoL"
-        android:onClick="dothis"
-        android:text="Toggle Scanning" />
+        android:onClick="btnDiscover"
+        android:text="@string/toggle_scanning" />
 
     <!--<Button-->
         <!--android:id="@+id/Scanning"-->
@@ -77,7 +77,7 @@
         android:layout_alignParentStart="true"
         android:layout_marginStart="10dp"
         android:layout_marginTop="10dp"
-        android:text="1" />
+        android:text="@string/_1" />
 
     <Spinner
         android:id="@+id/myaddresses"
@@ -108,7 +108,7 @@
         android:layout_marginTop="10dp"
         android:layout_toEndOf="@+id/destAddresses"
         android:onClick="applyTransaction"
-        android:text="Apply for Transaction" />
+        android:text="@string/apply_for_transaction" />
 
     <Button
         android:id="@+id/sendLocation"
@@ -119,7 +119,7 @@
         android:layout_marginTop="10dp"
         android:layout_toEndOf="@+id/myaddresses"
         android:onClick="confirmPoL"
-        android:text="Confirm" />
+        android:text="@string/confirm" />
 
 
 </RelativeLayout>

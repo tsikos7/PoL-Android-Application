@@ -2,6 +2,11 @@
     <string name="app_name">Project Odyssey</string>
     <string name="edit_message">Enter a message</string>
     <string name="button_send">Send</string>
+    <string name="apply_for_transaction">Apply for Transaction</string>
+    <string name="confirm">Confirm</string>
+    <string name="_1">1</string>
+    <string name="toggle_scanning">Toggle Scanning</string>
+    <string name="activate_bluetooth">Activate Bluetooth</string>
     <string-array name="myaddresses">
         <item>0x3E877f2f819E1feec88336c4d75966637e21C6cC</item>
         <item>0x8810b36A2Cde364549D814C6023B24Ca8Bc37bF1</item>
